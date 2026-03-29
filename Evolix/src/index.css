@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Chirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-panel: var(--color-bg-panel);
+  --color-text-base: var(--color-text-base);
+  --color-text-hover: var(--color-text-hover);
+  --color-text-muted: var(--color-text-muted);
+  --color-border: var(--color-border);
+}
+
+@layer base {
+  :root {
+    --color-primary: #1d9bf0;
+    --color-primary-hover: #1a8cd8;
+    --color-bg-base: #ffffff;
+    --color-bg-panel: #ffffff;
+    --color-text-base: #0f1419;
+    --color-text-hover: #0f1419;
+    --color-text-muted: #536471;
+    --color-border: #eff3f4;
+  }
+
+  /* Background themes */
+  .theme-dim {
+    --color-bg-base: #15202b;
+    --color-bg-panel: #1e2732;
+    --color-text-base: #ffffff;
+    --color-text-hover: #ffffff;
+    --color-text-muted: #8b98a5;
+    --color-border: #38444d;
+  }
+
+  .theme-lights-out {
+    --color-bg-base: #000000;
+    --color-bg-panel: #000000;
+    --color-text-base: #e7e9ea;
+    --color-text-hover: #ffffff;
+    --color-text-muted: #71767b;
+    --color-border: #2f3336;
+  }
+
+  /* Color themes */
+  .color-yellow { --color-primary: #ffd400; --color-primary-hover: #e5be00; }
+  .color-pink { --color-primary: #f91880; --color-primary-hover: #e01673; }
+  .color-purple { --color-primary: #7856ff; --color-primary-hover: #6c4de6; }
+  .color-orange { --color-primary: #ff7a00; --color-primary-hover: #e66e00; }
+  .color-green { --color-primary: #00ba7c; --color-primary-hover: #00a76f; }
+
+  body {
+    @apply bg-bg-base text-text-base font-sans antialiased selection:bg-text-hover selection:text-white;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Map utility classes to CSS variables so display color theme affects all buttons */
+:root {
+  --color-primary: #1d9bf0;
+  --color-primary-hover: #1a8cd8;
+}
+
+.text-primary { color: var(--color-primary) !important; }
+.text-primary-hover:hover { color: var(--color-primary-hover) !important; }
+.bg-primary { background-color: var(--color-primary) !important; }
+.bg-primary-hover:hover { background-color: var(--color-primary-hover) !important; }
+.border-primary { border-color: var(--color-primary) !important; }
+.ring-primary { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 20%, transparent) !important; }
+
+/* Buttons contrast in dark chat themes */
+.chat-dark .bg-border\/50 { background-color: rgba(255,255,255,0.06) !important; }
+.chat-dark .text-text-base { color: var(--color-text-base) !important; }
+.chat-dark .bg-primary { background-color: color-mix(in srgb, var(--color-primary) 90%, #111 10%) !important; }
+
+/* Scope sidebar/header font-size so display font-size doesn't resize frames */
+.app-sidebar {
+  font-size: 16px !important;
+}
+
+/* Chat panel scope: control stacking and overflow without affecting global aside rules */
+.chat-panel {
+  z-index: 40;
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+/* Scale main content to 80% when requested (keep sidebar/chat unaffected) */
+.app-scale-80 {
+  transform: scale(0.8);
+  transform-origin: top center;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
