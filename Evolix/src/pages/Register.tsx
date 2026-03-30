@@ -1,20 +1,33 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { registerUser, saveAuthSession } from '../services/authApi';
 
 export default function Register() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const goToWebsite = () => {
     navigate('/', { replace: true });
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate registration
-    goToWebsite();
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const session = await registerUser(name, email, password);
+      saveAuthSession(session);
+      goToWebsite();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Registration failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -55,6 +68,11 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">
+            {errorMessage ? (
+              <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                {errorMessage}
+              </div>
+            ) : null}
             <input
               type="text"
               placeholder="Name"
@@ -80,8 +98,12 @@ export default function Register() {
               required
             />
 
-            <button type="submit" className="w-full bg-text-base text-bg-base rounded-full py-2.5 font-bold hover:opacity-85 transition-opacity">
-              Create account
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-text-base text-bg-base rounded-full py-2.5 font-bold hover:opacity-85 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </button>
           </form>
 

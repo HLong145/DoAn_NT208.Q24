@@ -1,19 +1,32 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { loginUser, saveAuthSession } from '../services/authApi';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const goToWebsite = () => {
     navigate('/', { replace: true });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate login
-    goToWebsite();
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const session = await loginUser(email, password);
+      saveAuthSession(session);
+      goToWebsite();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Login failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,9 +67,14 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
+            {errorMessage ? (
+              <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                {errorMessage}
+              </div>
+            ) : null}
             <input
               type="email"
-              placeholder="Email or username"
+              placeholder="Email"
               className="w-full border border-border rounded-md px-4 py-3 outline-none focus:border-primary"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -71,8 +89,12 @@ export default function Login() {
               required
             />
 
-            <button type="submit" className="w-full bg-text-base text-bg-base rounded-full py-2.5 font-bold hover:opacity-85 transition-opacity">
-              Log in
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-text-base text-bg-base rounded-full py-2.5 font-bold hover:opacity-85 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? 'Signing in...' : 'Log in'}
             </button>
           </form>
 
