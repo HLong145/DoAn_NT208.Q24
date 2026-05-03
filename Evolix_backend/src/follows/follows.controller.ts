@@ -1,5 +1,6 @@
-import { Controller, Post, Param, UseGuards, Request, ParseIntPipe, Inject } from '@nestjs/common';
+import { Controller, Post, Param, UseGuards, Request, ParseIntPipe, Inject, Get } from '@nestjs/common';
 import { ClientKafka, EventPattern, Payload } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { FollowsService } from './follows.service';
 import { AuthGuard } from '../auth/auth.guard'; 
 
@@ -12,11 +13,17 @@ export class FollowsController {
     private readonly followsService: FollowsService
   ) {}
 
+  @UseGuards(AuthGuard)
+  @Get('following')
+  getFollowingIds(@Request() req) {
+    return this.followsService.findFollowingIds(req.user.sub);
+  }
+
   // Endpoint to toggle follow: POST http://localhost:3000/follows/:followingId
   // Protected by AuthGuard to know WHO is following
   @UseGuards(AuthGuard)
   @Post(':followingId')
-  toggleFollow(
+  async toggleFollow(
     @Request() req, 
     // Safely parse the user ID from the URL parameter
     @Param('followingId', ParseIntPipe) followingId: number 
@@ -31,7 +38,7 @@ export class FollowsController {
     };
 
     // Đẩy sự kiện vào Kafka để xử lý bất đồng bộ (Asynchronous processing)
-    this.kafkaClient.emit('user.follow', JSON.stringify(messagePayload));
+    await firstValueFrom(this.kafkaClient.emit('user.follow', JSON.stringify(messagePayload)));
 
     // Phản hồi thành công ngay lập tức cho người dùng
     return {
@@ -49,7 +56,12 @@ export class FollowsController {
   @EventPattern('user.follow')
   async handleUserFollow(@Payload() message: any) {
     // Phân tích dữ liệu JSON thành Object (xử lý an toàn cho cả trường hợp data là string hoặc object)
-    const data = typeof message === 'string' ? JSON.parse(message) : (message.value ? message.value : message);
+    let data = message;
+    if (typeof message === 'string') {
+      data = JSON.parse(message);
+    } else if (message.value) {
+      data = message.value;
+    }
     
     // Đảm bảo dữ liệu được bóc tách an toàn nếu nó là chuỗi JSON lồng nhau
     const parsedData = typeof data === 'string' ? JSON.parse(data) : data;

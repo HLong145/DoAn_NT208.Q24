@@ -4,7 +4,7 @@ import { registerUser, saveAuthSession } from '../services/authApi';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,7 +20,7 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      const session = await registerUser(name, email, password);
+      const session = await registerUser(username, email, password);
       saveAuthSession(session);
       goToWebsite();
     } catch (error) {
@@ -75,10 +75,10 @@ export default function Register() {
             ) : null}
             <input
               type="text"
-              placeholder="Name"
+              placeholder="Username"
               className="w-full border border-border rounded-md px-4 py-3 outline-none focus:border-primary"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
             />
             <input

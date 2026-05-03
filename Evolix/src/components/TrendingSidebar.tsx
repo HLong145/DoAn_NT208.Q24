@@ -1,10 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, TrendingUp, Users, MoreHorizontal, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getSuggestions, type UserSummary } from '../services/usersApi';
+import { getTrendingTopics } from '../services/tweetsApi';
 
 interface TrendingSidebarProps {
   hideSearch?: boolean;
 }
+
+type TrendingTopic = {
+  topic: string;
+  posts: string;
+};
+
+type SearchSuggestion =
+  | {
+      type: 'user';
+      name: string;
+      handle: string;
+      avatar?: string;
+    }
+  | {
+      type: 'hashtag';
+      text: string;
+    };
 
 export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarProps) {
   const navigate = useNavigate();
@@ -12,22 +31,60 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const mockSuggestions = [
-    { type: 'user', name: 'Jane Doe', handle: 'janedoe', avatar: 'https://i.pravatar.cc/150?img=11' },
-    { type: 'user', name: 'Tech Insider', handle: 'techinsider', avatar: 'https://i.pravatar.cc/150?img=32' },
-    { type: 'hashtag', text: '#design' },
-    { type: 'hashtag', text: '#AIRevolution' },
-    { type: 'query', text: 'variable fonts' },
-    { type: 'query', text: 'quantum computing' },
-  ];
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [autocompleteUsers, setAutocompleteUsers] = useState<SearchSuggestion[]>([]);
+  const [whoToFollow, setWhoToFollow] = useState<Array<UserSummary & { avatarUrl?: string; displayName?: string }>>([]);
 
-  const filteredSuggestions = searchQuery 
-    ? mockSuggestions.filter(s => {
-        if (s.type === 'user') return s.name?.toLowerCase().includes(searchQuery.toLowerCase()) || s.handle?.toLowerCase().includes(searchQuery.toLowerCase());
-        if (s.type === 'hashtag') return s.text?.toLowerCase().includes(searchQuery.toLowerCase());
-        return s.text?.toLowerCase().includes(searchQuery.toLowerCase());
-      })
-    : mockSuggestions.slice(0, 4);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const [topics, suggestions] = await Promise.all([getTrendingTopics(), getSuggestions()]);
+        if (!mounted) return;
+        setTrendingTopics(topics ?? []);
+        setWhoToFollow(
+          suggestions.map((u) => ({
+            ...u,
+            avatarUrl: (u as UserSummary & { avatarUrl?: string }).avatarUrl ?? undefined,
+            displayName: (u as UserSummary & { displayName?: string }).displayName ?? u.username,
+          })),
+        );
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        if (!searchQuery || searchQuery.trim().length === 0) {
+          setAutocompleteUsers([]);
+          return;
+        }
+        const { searchUsers } = await import('../services/usersApi');
+        const users = await searchUsers(searchQuery.trim());
+        if (!mounted) return;
+        setAutocompleteUsers(
+          users.map((u) => ({
+            type: 'user',
+            name: u.username,
+            handle: u.username,
+            avatar: (u as UserSummary & { avatarUrl?: string }).avatarUrl ?? undefined,
+          })),
+        );
+      } catch {
+        setAutocompleteUsers([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [searchQuery]);
+
+  const filteredSuggestions: SearchSuggestion[] = searchQuery
+    ? [...autocompleteUsers, ...trendingTopics.slice(0, 4).map((topic: TrendingTopic): SearchSuggestion => ({ type: 'hashtag', text: topic.topic }))]
+    : trendingTopics.slice(0, 4).map((topic: TrendingTopic): SearchSuggestion => ({ type: 'hashtag', text: topic.topic }));
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,13 +102,6 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
     setIsSearchFocused(false);
     navigate(`/explore?q=${encodeURIComponent(text)}`);
   };
-
-  const trendingTopics = [
-    { category: 'Fashion & beauty', name: 'Discover', posts: 'Trending' },
-    { category: 'Fashion & beauty', name: 'Unwind', posts: 'Trending' },
-    { category: 'Fashion & beauty', name: 'Enhance', posts: 'Trending' },
-    { category: 'Fashion & beauty', name: 'Recharge', posts: 'Trending' },
-  ];
 
   return (
     <aside className="hidden lg:block w-[350px] flex-shrink-0 px-6 py-3 h-screen sticky top-0 overflow-y-auto">
@@ -107,7 +157,11 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
                     >
                       {suggestion.type === 'user' ? (
                         <>
-                          <img src={suggestion.avatar} alt={suggestion.name} className="w-10 h-10 rounded-full object-cover" />
+                          {suggestion.avatar ? (
+                            <img src={suggestion.avatar} alt={suggestion.name} className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{suggestion.name?.charAt(0)?.toUpperCase()}</div>
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-[15px] truncate">{suggestion.name}</div>
                             <div className="text-text-muted text-sm truncate">@{suggestion.handle}</div>
@@ -142,21 +196,27 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
           What's happening
         </h2>
         <div>
-          {trendingTopics.map((topic, index) => (
-            <div 
-              key={index} 
-              className="cursor-pointer group flex justify-between items-start px-4 py-3 hover:bg-border transition-colors"
-              onClick={() => handleSearch(topic.name)}
-            >
-              <div>
-                <p className="text-sm text-text-muted">{topic.category} · {topic.posts}</p>
-                <p className="font-bold group-hover:text-primary transition-colors">{topic.name}</p>
+          {(trendingTopics.length > 0 ? trendingTopics : [
+            { topic: '#design', posts: '120K' },
+            { topic: '#AIRevolution', posts: '85K' },
+            { topic: '#webdev', posts: '45K' },
+            { topic: '#webperf', posts: '32K' },
+          ] as TrendingTopic[]).map((topic, index) => (
+              <div 
+                key={index} 
+                className="cursor-pointer group flex justify-between items-start px-4 py-3 hover:bg-border transition-colors"
+                onClick={() => handleSearch(topic.topic)}
+              >
+                <div>
+                  <p className="text-sm text-text-muted">Trending</p>
+                  <p className="font-bold group-hover:text-primary transition-colors">{topic.topic}</p>
+                  <p className="text-sm text-text-muted">{topic.posts}</p>
+                </div>
+                <button className="text-text-muted hover:text-primary p-1 rounded-full hover:bg-primary/10 transition-colors" onClick={(e) => e.stopPropagation()}>
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
               </div>
-              <button className="text-text-muted hover:text-primary p-1 rounded-full hover:bg-primary/10 transition-colors" onClick={(e) => e.stopPropagation()}>
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            ))}
           <button className="w-full text-left px-4 py-3 text-primary hover:bg-border transition-colors text-[15px]">Show more</button>
         </div>
       </div>
@@ -167,34 +227,30 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
           Who to follow
         </h2>
         <div>
-          <div className="flex items-center justify-between px-4 py-3 hover:bg-border transition-colors">
-            <div className="flex items-center gap-3">
-              <Link to="/profile/techinsider">
-                <img src="https://i.pravatar.cc/150?img=32" alt="User" className="w-10 h-10 rounded-full object-cover hover:opacity-80 transition-opacity" />
-              </Link>
-              <div>
-                <Link to="/profile/techinsider" className="font-bold text-sm hover:underline block">Tech Insider</Link>
-                <span className="text-text-muted text-sm">@techinsider</span>
+          {whoToFollow.length > 0 ? (
+            whoToFollow.map((u) => (
+              <div key={u.id} className="flex items-center justify-between px-4 py-3 hover:bg-border transition-colors">
+                <div className="flex items-center gap-3">
+                  <Link to={`/profile/${u.username}`}>
+                    {u.avatarUrl ? (
+                      <img src={u.avatarUrl} alt={u.username} className="w-10 h-10 rounded-full object-cover hover:opacity-80 transition-opacity" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{u.username?.charAt(0)?.toUpperCase()}</div>
+                    )}
+                  </Link>
+                  <div>
+                    <Link to={`/profile/${u.username}`} className="font-bold text-sm hover:underline block">{(u as any).displayName ?? u.username}</Link>
+                    <span className="text-text-muted text-sm">@{u.username}</span>
+                  </div>
+                </div>
+                <button className="bg-text-base text-bg-base px-4 py-1.5 rounded-full text-sm font-bold transition-colors opacity-95 hover:opacity-80">
+                  Follow
+                </button>
               </div>
-            </div>
-            <button className="bg-text-base text-bg-base px-4 py-1.5 rounded-full text-sm font-bold transition-colors opacity-95 hover:opacity-80">
-              Follow
-            </button>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 hover:bg-border transition-colors">
-            <div className="flex items-center gap-3">
-              <Link to="/profile/designweekly">
-                <img src="https://i.pravatar.cc/150?img=44" alt="User" className="w-10 h-10 rounded-full object-cover hover:opacity-80 transition-opacity" />
-              </Link>
-              <div>
-                <Link to="/profile/designweekly" className="font-bold text-sm hover:underline block">Design Weekly</Link>
-                <span className="text-text-muted text-sm">@designweekly</span>
-              </div>
-            </div>
-            <button className="bg-text-base text-bg-base px-4 py-1.5 rounded-full text-sm font-bold transition-colors opacity-95 hover:opacity-80">
-              Follow
-            </button>
-          </div>
+            ))
+          ) : (
+            <div className="p-4 text-text-muted">No suggestions</div>
+          )}
           <button className="w-full text-left px-4 py-3 text-primary hover:bg-border transition-colors text-[15px]">Show more</button>
         </div>
       </div>

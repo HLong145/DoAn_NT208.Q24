@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Inject } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Inject, Get } from '@nestjs/common';
 import { ClientKafka, EventPattern, Payload } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { CommentsService } from './comments.service';
 import { AuthGuard } from '../auth/auth.guard';
 
@@ -12,10 +13,16 @@ export class CommentsController {
     private readonly commentsService: CommentsService
   ) {}
 
+  @UseGuards(AuthGuard)
+  @Get(':tweetId')
+  getCommentsByTweet(@Param('tweetId', ParseIntPipe) tweetId: number) {
+    return this.commentsService.getCommentsByTweet(tweetId);
+  }
+
   // Endpoint to add a comment: POST http://localhost:3000/comments/:tweetId
   @UseGuards(AuthGuard)
   @Post(':tweetId')
-  createComment(
+  async createComment(
     @Request() req,
     // Extract tweetId from the URL
     @Param('tweetId', ParseIntPipe) tweetId: number,
@@ -33,7 +40,7 @@ export class CommentsController {
     };
 
     // Đẩy sự kiện vào Kafka để xử lý bất đồng bộ (Asynchronous processing)
-    this.kafkaClient.emit('tweet.comment', JSON.stringify(messagePayload));
+    await firstValueFrom(this.kafkaClient.emit('tweet.comment', JSON.stringify(messagePayload)));
 
     // Phản hồi thành công ngay lập tức cho người dùng
     return {
@@ -51,7 +58,12 @@ export class CommentsController {
   @EventPattern('tweet.comment')
   async handleTweetComment(@Payload() message: any) {
     // Phân tích dữ liệu JSON thành Object (xử lý an toàn cho cả trường hợp data là string hoặc object)
-    const data = typeof message === 'string' ? JSON.parse(message) : (message.value ? message.value : message);
+    let data = message;
+    if (typeof message === 'string') {
+      data = JSON.parse(message);
+    } else if (message.value) {
+      data = message.value;
+    }
     
     // Đảm bảo dữ liệu được bóc tách an toàn nếu nó là chuỗi JSON lồng nhau
     const parsedData = typeof data === 'string' ? JSON.parse(data) : data;

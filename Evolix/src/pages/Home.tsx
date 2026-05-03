@@ -1,7 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { Image as ImageIcon, Smile, ListTodo, Calendar, MapPin, X } from 'lucide-react';
 import Tweet from '../components/Tweet';
 import TrendingSidebar from '../components/TrendingSidebar';
+import { createTweet, getFeed, type TimelineTweet } from '../services/tweetsApi';
+import { createRealtimeSocket } from '../services/realtimeClient';
+import { getCurrentUser, type AuthUser } from '../services/authApi';
+import { getUserProfile } from '../services/usersApi';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'forYou' | 'following'>('forYou');
@@ -10,8 +14,15 @@ export default function Home() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [location, setLocation] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [tweets, setTweets] = useState<TimelineTweet[]>([]);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef(activeTab);
   const maxChars = 280;
   const charsLeft = maxChars - tweetText.length;
 
@@ -28,50 +39,72 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [tweets, setTweets] = useState([
-    {
-      id: "1",
-      author: {
-        name: "Jane Doe",
-        handle: "janedoe",
-        avatar: "https://i.pravatar.cc/150?img=11"
-      },
-      content: "Just published a new article on the intersection of design and technology. It's fascinating how much typography influences our perception of digital products. #design #tech",
-      timestamp: "2h",
-      stats: { replies: 12, reposts: 45, likes: 320, views: 1200 },
-      isLiked: true,
-      media: ["https://picsum.photos/seed/design/800/400"],
-      isFollowing: false
-    },
-    {
-      id: "2",
-      author: {
-        name: "Tech Insider",
-        handle: "techinsider",
-        avatar: "https://i.pravatar.cc/150?img=32"
-      },
-      content: "Breaking: The new AI model just dropped and it's changing everything we know about automated content generation. What are your thoughts on this? @janedoe #AIRevolution",
-      timestamp: "5h",
-      stats: { replies: 89, reposts: 210, likes: 1500, views: 8500 },
-      isReposted: true,
-      isFollowing: true
-    },
-    {
-      id: "3",
-      author: {
-        name: "Design Weekly",
-        handle: "designweekly",
-        avatar: "https://i.pravatar.cc/150?img=44"
-      },
-      content: "Minimalism isn't dead, it's just evolving. Here are 5 examples of brutalist minimalism in modern web design.",
-      timestamp: "1d",
-      stats: { replies: 5, reposts: 12, likes: 89, views: 450 },
-      isBookmarked: true,
-      isFollowing: true
-    }
-  ]);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
-  const handlePost = () => {
+  const refreshTimeline = async (scope: 'forYou' | 'following' = activeTabRef.current) => {
+    try {
+      setErrorMessage('');
+      setIsLoading(true);
+      const feed = await getFeed(scope);
+      setTweets(feed);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load timeline.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshTimeline(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const session = await getCurrentUser();
+        setCurrentUser(session.user);
+        try {
+          const profile = await getUserProfile(session.user.handle);
+          setCurrentUserAvatar(profile.user.avatarUrl ?? undefined);
+        } catch (err) {
+          setCurrentUserAvatar(undefined);
+        }
+      } catch (error) {
+        console.error('Could not load current user:', error);
+        setCurrentUser(null);
+      }
+    };
+
+    void loadCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const socket = createRealtimeSocket();
+
+    if (!socket) {
+      return;
+    }
+
+    const handleRealtimeUpdate = () => {
+      void refreshTimeline(activeTabRef.current);
+    };
+
+    socket.on('new_tweet', handleRealtimeUpdate);
+    socket.on('user.followed', handleRealtimeUpdate);
+    socket.on('connected', () => {
+      // Connection acknowledged by backend gateway.
+    });
+
+    return () => {
+      socket.off('new_tweet', handleRealtimeUpdate);
+      socket.off('user.followed', handleRealtimeUpdate);
+      socket.disconnect();
+    };
+  }, []);
+
+  const handlePost = async () => {
     if (tweetText.trim() === '' && !showPoll) return;
 
     let finalContent = tweetText;
@@ -79,27 +112,23 @@ export default function Home() {
       finalContent += `\n\n📍 ${location}`;
     }
 
-    const newTweet = {
-      id: Date.now().toString(),
-      author: {
-        name: "Jane Doe",
-        handle: "janedoe",
-        avatar: "https://i.pravatar.cc/150?img=11"
-      },
-      content: finalContent,
-      timestamp: "Just now",
-      stats: { replies: 0, reposts: 0, likes: 0, views: 0 },
-      isFollowing: false
-    };
-
-    setTweets([newTweet, ...tweets]);
-    setTweetText('');
-    setShowPoll(false);
-    setLocation(null);
+    try {
+      setIsPosting(true);
+      setErrorMessage('');
+      await createTweet(finalContent);
+      setTweetText('');
+      setShowPoll(false);
+      setLocation(null);
+      await refreshTimeline();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not publish tweet.');
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   const handleEmojiClick = (emoji: string) => {
-    setTweetText(prev => prev + emoji);
+    setTweetText((prev: string) => prev + emoji);
     setShowEmojiPicker(false);
   };
 
@@ -130,8 +159,7 @@ export default function Home() {
     }
   };
 
-  const baseTweets = activeTab === 'forYou' ? tweets : tweets.filter(t => t.isFollowing || t.author.handle === 'janedoe');
-  const displayedTweets = baseTweets;
+  const displayedTweets = tweets;
 
   return (
     <>
@@ -157,16 +185,26 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        {errorMessage && (
+          <div className="mx-4 mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+            {errorMessage}
+          </div>
+        )}
         
         {/* Compose Box */}
         <div className="px-4 py-3 border-b border-border flex gap-3">
-          <img src="https://i.pravatar.cc/150?img=11" alt="User" className="w-10 h-10 rounded-full object-cover" />
+          {currentUserAvatar ? (
+            <img src={currentUserAvatar} alt={currentUser?.name ?? 'User'} className="w-10 h-10 rounded-full object-cover" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{currentUser?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
+          )}
           <div className="flex-1 relative">
             <textarea 
               placeholder="What's happening?" 
               className="w-full bg-transparent resize-none outline-none text-[20px] leading-7 placeholder:text-text-muted min-h-[52px] overflow-hidden"
               value={tweetText}
-              onChange={(e) => {
+              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                 setTweetText(e.target.value);
                 e.target.style.height = 'auto';
                 e.target.style.height = e.target.scrollHeight + 'px';
@@ -265,10 +303,10 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePost}
-                  className={`bg-primary text-white px-5 py-2 rounded-full font-bold text-[15px] transition-colors ${tweetText.length === 0 && !showPoll && !location ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary-hover'}`}
-                  disabled={tweetText.length === 0 && !showPoll && !location}
+                  className={`bg-primary text-white px-5 py-2 rounded-full font-bold text-[15px] transition-colors ${tweetText.length === 0 && !showPoll && !location ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary-hover'} ${isPosting ? 'opacity-70 cursor-wait' : ''}`}
+                  disabled={tweetText.length === 0 && !showPoll && !location || isPosting}
                 >
-                  Post
+                  {isPosting ? 'Posting...' : 'Post'}
                 </button>
               </div>
             </div>
@@ -277,9 +315,15 @@ export default function Home() {
 
         {/* Feed */}
         <div className="divide-y divide-border">
-          {displayedTweets.map(tweet => (
-            <Tweet key={tweet.id} {...tweet} />
-          ))}
+          {isLoading ? (
+            <div className="px-4 py-8 text-text-muted">Loading timeline...</div>
+          ) : displayedTweets.length === 0 ? (
+            <div className="px-4 py-8 text-text-muted">No tweets yet.</div>
+          ) : (
+            displayedTweets.map((tweet) => (
+              <Tweet key={tweet.id} {...tweet} />
+            ))
+          )}
         </div>
       </main>
 

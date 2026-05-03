@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const DM_SETTING_STORAGE_KEY = 'display_dmSetting';
+
 export default function DirectMessages() {
   const navigate = useNavigate();
-  const [setting, setSetting] = useState('everyone');
+  const [setting, setSetting] = useState(() => window.localStorage.getItem(DM_SETTING_STORAGE_KEY) || 'everyone');
 
   return (
     <main className="flex-1 min-w-0 border-r border-border pb-20 sm:pb-0 relative">
@@ -32,7 +34,16 @@ export default function DirectMessages() {
                 <p className="font-bold text-[15px]">{opt.label}</p>
                 <p className="text-sm text-text-muted mt-0.5">{opt.desc}</p>
               </div>
-              <input type="radio" name="dm-setting" checked={setting === opt.id} onChange={() => setSetting(opt.id)} className="mt-1" />
+              <input
+                type="radio"
+                name="dm-setting"
+                checked={setting === opt.id}
+                onChange={() => {
+                  setSetting(opt.id);
+                  window.localStorage.setItem(DM_SETTING_STORAGE_KEY, opt.id);
+                }}
+                className="mt-1"
+              />
             </label>
           ))}
         </div>

@@ -8,7 +8,7 @@ const port = Number(process.env.AUTH_API_PORT ?? 4001);
 const authService = new AuthService(
   createUserRepository(),
   process.env.AUTH_JWT_SECRET ?? 'dev-auth-secret-change-me',
-  process.env.AUTH_JWT_EXPIRES_IN ?? '7d',
+  (process.env.AUTH_JWT_EXPIRES_IN ?? '7d') as any,
 );
 
 app.use(express.json());

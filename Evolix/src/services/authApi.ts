@@ -1,3 +1,5 @@
+import { buildApiUrl } from './apiConfig';
+
 export type AuthUser = {
   id: string;
   name: string;
@@ -11,12 +13,23 @@ export type AuthSession = {
   user: AuthUser;
 };
 
+export type CurrentUserResponse = {
+  user: AuthUser;
+};
+
+export type ChangePasswordResponse = {
+  message: string;
+};
+
+export type DeactivateAccountResponse = {
+  message: string;
+};
+
 type AuthErrorResponse = {
   error?: string;
   message?: string;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 const SESSION_STORAGE_KEY = 'evolix.auth.session';
 
 export async function loginUser(email: string, password: string): Promise<AuthSession> {
@@ -26,16 +39,94 @@ export async function loginUser(email: string, password: string): Promise<AuthSe
   });
 }
 
-export async function registerUser(name: string, email: string, password: string): Promise<AuthSession> {
+export async function registerUser(username: string, email: string, password: string): Promise<AuthSession> {
   return requestAuth<AuthSession>('/auth/register', {
-    name,
+    username,
     email,
     password,
   });
 }
 
+export async function getCurrentUser(): Promise<CurrentUserResponse> {
+  const session = getAuthSession();
+
+  if (!session?.token) {
+    throw new Error('Please sign in to continue.');
+  }
+
+  const response = await fetch(buildApiUrl('/auth/me'), {
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+    },
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as CurrentUserResponse & AuthErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  }
+
+  return payload as CurrentUserResponse;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
+  const session = getAuthSession();
+
+  if (!session?.token) {
+    throw new Error('Please sign in to continue.');
+  }
+
+  const response = await fetch(buildApiUrl('/auth/password'), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`,
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as ChangePasswordResponse & AuthErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  }
+
+  return payload as ChangePasswordResponse;
+}
+
+export async function deactivateAccount(): Promise<DeactivateAccountResponse> {
+  const session = getAuthSession();
+
+  if (!session?.token) {
+    throw new Error('Please sign in to continue.');
+  }
+
+  const response = await fetch(buildApiUrl('/auth/deactivate'), {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+    },
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as DeactivateAccountResponse & AuthErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  }
+
+  return payload as DeactivateAccountResponse;
+}
+
 export function saveAuthSession(session: AuthSession): void {
   window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+export function clearAuthSession(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 export function getAuthSession(): AuthSession | null {
@@ -56,7 +147,7 @@ export function getAuthSession(): AuthSession | null {
 }
 
 async function requestAuth<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}/api${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

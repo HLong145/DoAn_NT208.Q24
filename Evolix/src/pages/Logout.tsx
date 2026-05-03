@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { clearAuthSession } from '../services/authApi';
 
 export default function Logout() {
   const navigate = useNavigate();
@@ -19,7 +20,10 @@ export default function Logout() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/login')}
+            onClick={() => {
+              clearAuthSession();
+              navigate('/login');
+            }}
             className="flex-1 rounded-full bg-primary text-white py-3 font-bold hover:bg-primary-hover transition-colors"
           >
             Log out

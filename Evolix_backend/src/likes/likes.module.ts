@@ -5,12 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Like } from './entities/like.entity'; 
 import { Tweet } from '../tweets/entities/tweet.entity'; 
 import { KafkaModule } from '../kafka/kafka.module'
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   // This module is authorized to interact with both Like and Tweet tables
   imports: [TypeOrmModule.forFeature([Like, Tweet]),
-  KafkaModule
-], 
+    KafkaModule,
+    NotificationsModule
+  ], 
   controllers: [LikesController],
   providers: [LikesService]
 })

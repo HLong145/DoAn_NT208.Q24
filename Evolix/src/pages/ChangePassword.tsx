@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { changePassword } from '../services/authApi';
 
 export default function ChangePassword() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function ChangePassword() {
     setConfirmPassword('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess(false);
@@ -37,12 +38,15 @@ export default function ChangePassword() {
 
     setIsSubmitting(true);
 
-    // Simulate async request
-    setTimeout(() => {
+    try {
+      const response = await changePassword(currentPassword, newPassword);
       setIsSubmitting(false);
       setSuccess(true);
       resetForm();
-    }, 900);
+    } catch (requestError) {
+      setIsSubmitting(false);
+      setError(requestError instanceof Error ? requestError.message : 'Could not update password.');
+    }
   };
 
   return (

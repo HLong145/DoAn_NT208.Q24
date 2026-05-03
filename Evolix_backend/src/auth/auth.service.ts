@@ -5,6 +5,14 @@ import { User } from '../users/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
+type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  handle: string;
+  createdAt: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -32,18 +40,32 @@ export class AuthService {
       username,
       email,
       password: hashedPassword,
+      displayName: username,
+      bio: null,
+      location: null,
+      website: null,
+      avatarUrl: `https://i.pravatar.cc/150?u=${encodeURIComponent(username)}`,
+      headerUrl: `https://picsum.photos/seed/${encodeURIComponent(username)}/1200/400`,
+      isActive: true,
+      deactivatedAt: null,
     });
     await this.userRepository.save(newUser);
 
-    return { message: 'Successfully Registered', user: { username, email } };
+    return this.buildAuthSession(newUser);
   }
 
   //Login Func
-  async login(username: string, pass: string) {
+  async login(identifier: string, pass: string) {
     //Check for user in DB
-    const user = await this.userRepository.findOne({ where: { username } });
+    const user = await this.userRepository.findOne({
+      where: [{ email: identifier }, { username: identifier }],
+    });
     if (!user) {
       throw new UnauthorizedException('Username or Password is incorrect');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('This account has been deactivated');
     }
 
     //Another check for the password vs encrypted password
@@ -54,9 +76,87 @@ export class AuthService {
 
     //Login Success
     const payload = { sub: user.id, username: user.username };
+    return this.buildAuthSession(user, payload);
+  }
+
+  async me(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('This account has been deactivated');
+    }
+
     return {
-      message: 'Login success',
-      access_token: await this.jwtService.signAsync(payload),
+      user: this.toAuthUser(user),
+    };
+  }
+
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('This account has been deactivated');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Password updated successfully',
+    };
+  }
+
+  async deactivateAccount(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.isActive) {
+      return {
+        message: 'Account is already deactivated',
+      };
+    }
+
+    user.isActive = false;
+    user.deactivatedAt = new Date();
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Account deactivated successfully',
+    };
+  }
+
+  private async buildAuthSession(user: User, payload?: { sub: number; username: string }) {
+    const tokenPayload = payload ?? { sub: user.id, username: user.username };
+
+    return {
+      token: await this.jwtService.signAsync(tokenPayload),
+      user: this.toAuthUser(user),
+    };
+  }
+
+  private toAuthUser(user: User): AuthUser {
+    return {
+      id: user.id.toString(),
+      name: user.displayName ?? user.username,
+      email: user.email,
+      handle: user.username,
+      createdAt: user.createdAt.toISOString(),
     };
   }
 }

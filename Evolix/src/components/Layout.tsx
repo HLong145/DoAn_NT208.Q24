@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Home, Search, Bell, Mail, User, Users, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { getCurrentUser, type AuthUser } from '../services/authApi';
+import { getUserProfile } from '../services/usersApi';
 
 export default function Layout() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -57,7 +59,32 @@ export default function Layout() {
     setIsMoreMenuOpen(false);
   };
 
-  const userHandle = '@janedoe';
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const res = await getCurrentUser();
+        if (!mounted) return;
+        setCurrentUser(res.user);
+        try {
+          const profile = await getUserProfile(res.user.handle);
+          if (!mounted) return;
+          setCurrentUserAvatar(profile.user.avatarUrl ?? undefined);
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        setCurrentUser(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const userHandle = currentUser ? `@${currentUser.handle}` : '@janedoe';
+  const displayName = currentUser?.name ?? 'Jane Doe';
 
   return (
     <div className={`${isMessagesRoute ? 'w-full max-w-none' : 'mx-auto w-full max-w-[1265px]'} flex min-h-screen relative`}>
@@ -153,13 +180,21 @@ export default function Layout() {
                   onClick={toggleAccountMenu}
                   className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <img src="https://i.pravatar.cc/150?img=11" alt="User" className="w-10 h-10 rounded-full object-cover" />
+                  {currentUserAvatar ? (
+                    <img src={currentUserAvatar} alt="User" className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{currentUser?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
+                  )}
                 </button>
               ) : (
-                <img src="https://i.pravatar.cc/150?img=11" alt="User" className="w-10 h-10 rounded-full object-cover" />
+                currentUserAvatar ? (
+                  <img src={currentUserAvatar} alt="User" className="w-10 h-10 rounded-full object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{currentUser?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
+                )
               )}
               <div className={`${isMessagesRoute ? 'hidden' : 'hidden xl:flex'} flex-col items-start`}>
-                <span className="font-bold text-sm leading-tight">Jane Doe</span>
+                <span className="font-bold text-sm leading-tight">{displayName}</span>
                 <span className="text-text-muted text-sm leading-tight">{userHandle}</span>
               </div>
             </div>
@@ -241,11 +276,15 @@ export default function Layout() {
               {/* Preview Tweet */}
               <div className="border border-border rounded-xl p-4 mb-8 text-left" style={{ fontSize: previewFontSize }}>
                 <div className="flex gap-3">
-                  <img src="https://i.pravatar.cc/150?img=11" alt="User" className="w-12 h-12 rounded-full" />
+                  {currentUserAvatar ? (
+                    <img src={currentUserAvatar} alt="User" className="w-12 h-12 rounded-full" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{currentUser?.name?.charAt(0)?.toUpperCase() ?? 'U'}</div>
+                  )}
                   <div>
                     <div className="flex items-center gap-1">
-                      <span className="font-bold">Jane Doe</span>
-                      <span className="text-text-muted">@janedoe</span>
+                      <span className="font-bold">{displayName}</span>
+                      <span className="text-text-muted">{userHandle}</span>
                       <span className="text-text-muted">·</span>
                       <span className="text-text-muted">14m</span>
                     </div>

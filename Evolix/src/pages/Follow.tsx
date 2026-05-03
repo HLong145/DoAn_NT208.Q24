@@ -1,36 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings, MoreHorizontal } from 'lucide-react';
 import TrendingSidebar from '../components/TrendingSidebar';
+import { getSuggestions, type UserSummary } from '../services/usersApi';
 
 export default function Follow() {
   const [activeTab, setActiveTab] = useState<'follow' | 'creators'>('follow');
+  const [suggestions, setSuggestions] = useState<UserSummary[]>([]);
 
-  const suggestions = [
-    {
-      name: 'Josh Hawley',
-      handle: '@HawleyMO',
-      avatar: 'https://i.pravatar.cc/150?img=52',
-      bio: 'Follower of Jesus, constitutional lawyer, husband to Erin, Dad to Elijah, Blaise and Abigail, U.S. Senator for Missouri'
-    },
-    {
-      name: 'Byron Donalds',
-      handle: '@ByronDonalds',
-      avatar: 'https://i.pravatar.cc/150?img=59',
-      bio: 'Trump-Endorsed Republican for Governor of Florida, Congressman, Husband, Father, and follower of Christ Proudly Serving SWFL.'
-    },
-    {
-      name: 'Matt Gaetz',
-      handle: '@mattgaetz',
-      avatar: 'https://i.pravatar.cc/150?img=60',
-      bio: 'Florida Man'
-    },
-    {
-      name: 'Stephen Miller',
-      handle: '@StephenM',
-      avatar: 'https://i.pravatar.cc/150?img=61',
-      bio: 'Deputy Chief of Staff for Policy and Homeland Security'
-    }
-  ];
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const res = await getSuggestions();
+        if (!mounted) return;
+        setSuggestions(res);
+      } catch (err) {
+        setSuggestions([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <>
@@ -67,14 +56,20 @@ export default function Follow() {
 
         <div>
           {suggestions.map((user) => (
-            <div key={user.handle} className="px-4 py-3 border-b border-border hover:bg-border/35 transition-colors cursor-pointer">
+            <div key={user.id} className="px-4 py-3 border-b border-border hover:bg-border/35 transition-colors cursor-pointer">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0">
-                  <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
+                  <div>
+                    {(user as any).avatarUrl ? (
+                      <img src={(user as any).avatarUrl} alt={(user as any).displayName ?? user.username} className="w-12 h-12 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{user.username?.charAt(0)?.toUpperCase()}</div>
+                    )}
+                  </div>
                   <div className="min-w-0">
-                    <p className="font-extrabold text-[15px] truncate">{user.name}</p>
-                    <p className="text-sm text-text-muted truncate">{user.handle}</p>
-                    <p className="text-[15px] mt-1 leading-5 text-text-base">{user.bio}</p>
+                    <p className="font-extrabold text-[15px] truncate">{(user as any).displayName ?? user.username}</p>
+                    <p className="text-sm text-text-muted truncate">@{user.username}</p>
+                    <p className="text-[15px] mt-1 leading-5 text-text-base">{(user as any).bio ?? ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

@@ -1,10 +1,36 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { clearAuthSession, deactivateAccount } from '../services/authApi';
 
 export default function DeactivateAccount() {
   const navigate = useNavigate();
   const [deactivated, setDeactivated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleDeactivate = async () => {
+    const confirmed = confirm('Are you sure you want to deactivate your account?');
+    if (!confirmed || isSubmitting) {
+      return;
+    }
+
+    try {
+      setErrorMessage('');
+      setIsSubmitting(true);
+      await deactivateAccount();
+      setDeactivated(true);
+      clearAuthSession();
+
+      setTimeout(() => {
+        navigate('/login');
+      }, 1200);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not deactivate account.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <main className="flex-1 min-w-0 border-r border-border pb-20 sm:pb-0 relative">
@@ -28,19 +54,18 @@ export default function DeactivateAccount() {
           </ul>
         </div>
 
+        {errorMessage && <div className="mb-4 text-sm text-red-500">{errorMessage}</div>}
+
         {deactivated ? (
-          <div className="text-primary font-bold">Your account has been deactivated.</div>
+          <div className="text-primary font-bold">Your account has been deactivated. Redirecting to login...</div>
         ) : (
           <div className="flex gap-3 items-center">
             <button
-              onClick={() => {
-                if (confirm('Are you sure you want to deactivate your account?')) {
-                  setDeactivated(true);
-                }
-              }}
-              className="bg-red-600 text-white px-6 py-2 rounded-full font-bold hover:bg-red-700 transition-colors"
+              onClick={() => void handleDeactivate()}
+              disabled={isSubmitting}
+              className="bg-red-600 text-white px-6 py-2 rounded-full font-bold hover:bg-red-700 transition-colors disabled:opacity-60"
             >
-              Deactivate
+              {isSubmitting ? 'Deactivating...' : 'Deactivate'}
             </button>
             <button onClick={() => navigate(-1)} className="px-4 py-2 rounded-full border border-border text-text-muted hover:bg-border/40 transition-colors">Cancel</button>
           </div>

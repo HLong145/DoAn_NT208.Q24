@@ -15,7 +15,8 @@ export type UserRecord = PublicUser & {
 };
 
 export type RegisterInput = {
-  name: string;
+  name?: string;
+  username?: string;
   email: string;
   password: string;
 };
@@ -57,7 +58,7 @@ export class AuthService {
   ) {}
 
   async register(input: RegisterInput): Promise<AuthResponse> {
-    const name = input.name.trim();
+    const name = (input.name ?? input.username ?? '').trim();
     const email = normalizeEmail(input.email);
     const password = input.password;
 

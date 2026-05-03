@@ -1,68 +1,59 @@
-import { useState } from 'react';
-import { Bell, Heart, UserPlus, MessageCircle, Check, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, Heart, UserPlus, MessageCircle, Check, Settings, RefreshCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
+import { getNotifications, markAllNotificationsRead, type NotificationItem } from '../services/notificationsApi';
 
 export default function Notifications() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
-  const [notifications, setNotifications] = useState([
-    {
-      id: "1",
-      type: "like",
-      users: [
-        { name: "Sarah Jenkins", avatar: "https://i.pravatar.cc/150?img=33", handle: "sarahj" }
-      ],
-      content: '"The intersection of design and technology is where the magic happens. We need to focus more on the human element."',
-      timestamp: "2h",
-      isRead: false,
-      targetId: "1" // Tweet ID
-    },
-    {
-      id: "2",
-      type: "follow",
-      users: [
-        { name: "Alex Morgan", avatar: "https://i.pravatar.cc/150?img=12", handle: "alexm" },
-        { name: "Another User", avatar: "https://i.pravatar.cc/150?img=13", handle: "another" },
-        { name: "Third User", avatar: "https://i.pravatar.cc/150?img=14", handle: "third" }
-      ],
-      content: "",
-      timestamp: "5h",
-      isRead: true,
-      targetId: "alexm" // User handle
-    },
-    {
-      id: "3",
-      type: "reply",
-      users: [
-        { name: "Design Weekly", avatar: "https://i.pravatar.cc/150?img=44", handle: "designweekly" }
-      ],
-      content: "@janedoe Couldn't agree more! Have you seen the latest updates to Figma?",
-      timestamp: "1d",
-      isRead: false,
-      targetId: "3" // Tweet ID
-    }
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage('');
+        const items = await getNotifications();
+        setNotifications(items);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Could not load notifications.');
+        setNotifications([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadNotifications();
+  }, []);
+
+  const markAllAsRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not update notifications.');
+    }
   };
 
-  const handleNotificationClick = (notification: any) => {
-    // Mark as read
-    setNotifications(notifications.map(n => n.id === notification.id ? { ...n, isRead: true } : n));
-    
-    // Navigate
+  const handleNotificationClick = (notification: NotificationItem) => {
+    setNotifications((prev) => prev.map((item) => item.id === notification.id ? { ...item, isRead: true } : item));
+
     if (notification.type === 'follow') {
-      navigate(`/profile/${notification.targetId}`);
-    } else {
+      navigate(`/profile/${notification.actor.handle}`);
+      return;
+    }
+
+    if (notification.targetId) {
       navigate(`/tweet/${notification.targetId}`);
     }
   };
 
-  const filteredNotifications = activeTab === 'all' 
-    ? notifications 
-    : notifications.filter(n => n.type === 'mention' || n.type === 'reply');
+  const filteredNotifications = activeTab === 'all'
+    ? notifications
+    : notifications.filter((notification) => notification.type === 'reply');
 
   return (
     <>
@@ -71,6 +62,13 @@ export default function Notifications() {
           <div className="p-4 flex justify-between items-center">
             <h1 className="text-[20px] font-extrabold tracking-tight">Notifications</h1>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="p-2 hover:bg-border/50 rounded-full transition-colors text-text-muted hover:text-text-base"
+                title="Refresh"
+              >
+                <RefreshCcw className="w-5 h-5" />
+              </button>
               <button 
                 onClick={markAllAsRead}
                 className="p-2 hover:bg-border/50 rounded-full transition-colors text-text-muted hover:text-text-base"
@@ -103,56 +101,50 @@ export default function Notifications() {
           </div>
         </div>
         
+                {errorMessage && (
+                  <div className="mx-4 mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                    {errorMessage}
+                  </div>
+                )}
+
         <div className="divide-y divide-border">
-          {filteredNotifications.length > 0 ? (
+                  {isLoading ? (
+                    <div className="p-8 text-center text-text-muted">Loading notifications...</div>
+                  ) : filteredNotifications.length > 0 ? (
             filteredNotifications.map((notification) => (
               <div 
                 key={notification.id} 
                 onClick={() => handleNotificationClick(notification)}
-                className={`p-4 hover:bg-border/50 transition-colors cursor-pointer flex gap-4 ${!notification.isRead ? 'bg-primary/5' : ''}`}
+                className={`p-4 hover:bg-border/50 transition-colors cursor-pointer flex gap-4 ${notification.isRead ? '' : 'bg-primary/5'}`}
               >
                 <div className="flex-shrink-0 flex justify-end w-8">
-                  {notification.type === 'like' && <Heart className="w-7 h-7 text-[#f91880] fill-current" />}
-                  {notification.type === 'follow' && <UserPlus className="w-7 h-7 text-primary fill-current" />}
-                  {(notification.type === 'mention' || notification.type === 'reply') && <MessageCircle className="w-7 h-7 text-primary fill-current" />}
+                          {notification.type === 'like' && <Heart className="w-7 h-7 text-[#f91880] fill-current" />}
+                          {notification.type === 'follow' && <UserPlus className="w-7 h-7 text-primary fill-current" />}
+                          {notification.type === 'reply' && <MessageCircle className="w-7 h-7 text-primary fill-current" />}
+                          {notification.type === 'tweet' && <Bell className="w-7 h-7 text-primary fill-current" />}
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex gap-2 mb-2">
-                    {notification.users.map((user, idx) => (
-                      <img 
-                        key={idx} 
-                        src={user.avatar} 
-                        alt={user.name} 
-                        className="w-8 h-8 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/profile/${user.handle}`);
-                        }}
-                      />
-                    ))}
-                  </div>
-                  
                   <div className="text-[15px] mb-2">
-                    <span 
+                            <span
                       className="font-bold hover:underline cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/profile/${notification.users[0].handle}`);
+                                navigate(`/profile/${notification.actor.handle}`);
                       }}
                     >
-                      {notification.users[0].name}
+                              {notification.actor.name}
                     </span>
-                    {notification.users.length > 1 && ` and ${notification.users.length - 1} others`}
-                    {notification.type === 'like' && ' liked your post'}
-                    {notification.type === 'follow' && ' followed you'}
-                    {notification.type === 'mention' && ' mentioned you'}
-                    {notification.type === 'reply' && ' replied to your post'}
+                            {notification.type === 'like' && ' liked your post'}
+                            {notification.type === 'follow' && ' followed you'}
+                            {notification.type === 'reply' && ' replied to your post'}
+                            {notification.type === 'tweet' && ' posted a new tweet'}
                   </div>
                   
                   {notification.content && (
                     <p className="text-text-muted text-[15px]">{notification.content}</p>
                   )}
+                          <div className="text-xs text-text-muted mt-2">{notification.timestamp}</div>
                 </div>
               </div>
             ))

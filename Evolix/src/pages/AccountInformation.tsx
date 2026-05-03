@@ -1,15 +1,32 @@
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser, type AuthUser } from '../services/authApi';
 
 export default function AccountInformation() {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const response = await getCurrentUser();
+        setCurrentUser(response.user);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Could not load account information.');
+      }
+    };
+
+    void loadCurrentUser();
+  }, []);
 
   const rows = [
-    { label: 'Username', value: 'janedoe' },
-    { label: 'Phone', value: '+1 555 555 5555' },
-    { label: 'Email', value: 'jane@example.com' },
-    { label: 'Birth date', value: 'March 12, 1998' },
-    { label: 'Account creation', value: 'March 2021' },
+    { label: 'Username', value: currentUser?.handle ?? 'Not available' },
+    { label: 'Email', value: currentUser?.email ?? 'Not available' },
+    { label: 'Display name', value: currentUser?.name ?? 'Not available' },
+    { label: 'Account creation', value: currentUser ? new Date(currentUser.createdAt).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Not available' },
+    { label: 'Phone', value: 'Not connected' },
   ];
 
   return (
@@ -28,6 +45,8 @@ export default function AccountInformation() {
         <p className="px-4 py-3 text-sm text-text-muted">
           Review and update the information associated with your account.
         </p>
+
+        {errorMessage && <div className="px-4 pb-3 text-sm text-red-500">{errorMessage}</div>}
 
         <div className="border-y border-border">
           {rows.map((row) => (

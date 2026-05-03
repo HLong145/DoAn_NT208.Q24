@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Like } from './entities/like.entity';
 import { Tweet } from '../tweets/entities/tweet.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LikesService {
@@ -12,6 +13,7 @@ export class LikesService {
     // Inject Tweet repository to update the like_count
     @InjectRepository(Tweet)
     private tweetRepository: Repository<Tweet>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async toggleLike(userId: number, tweetId: number) {
@@ -46,6 +48,13 @@ export class LikesService {
       
       // 6. Increase the like_count in tweets table by 1 directly in DB
       await this.tweetRepository.increment({ id: tweetId }, 'likeCount', 1);
+
+      await this.notificationsService.createNotification({
+        recipientId: tweet.userId,
+        actorId: userId,
+        type: 'like',
+        tweetId,
+      });
       
       return { message: 'Liked successfully', liked: true };
     }

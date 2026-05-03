@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get, Query } from '@nestjs/common';
 import { TweetsService } from './tweets.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { CreateTweetDto } from './dto/create-tweet.dto';
 
 @Controller('tweets')
 export class TweetsController {
@@ -14,9 +15,9 @@ export class TweetsController {
    */
   @UseGuards(AuthGuard)
   @Post()
-  createTweet(@Request() req, @Body('content') content: string) {
+  createTweet(@Request() req, @Body() body: CreateTweetDto) {
     const userId = req.user.sub;
-    return this.tweetsService.createTweet(userId, content);
+    return this.tweetsService.createTweet(userId, body.content);
   }
 
   /**
@@ -44,8 +45,57 @@ export class TweetsController {
    */
   @UseGuards(AuthGuard)
   @Get('timeline')
-  getUserTimeline(@Request() req) {
+  getUserTimeline(@Request() req, @Query('limit') limit?: string, @Query('offset') offset?: string) {
     const userId = req.user.sub;
-    return this.tweetsService.getUserTimeline(userId);
+    return this.tweetsService.getUserTimeline(userId, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('feed')
+  getFeed(@Request() req, @Query('scope') scope?: 'following' | 'for-you', @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    const userId = req.user.sub;
+    return this.tweetsService.getFeed(userId, scope === 'for-you' ? 'for-you' : 'following', {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('trending')
+  getTrending() {
+    return this.tweetsService.getTrendingTopics();
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('lead')
+  getLead() {
+    return this.tweetsService.getLeadStory();
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('search')
+  searchTweets(@Request() req, @Query('q') q: string, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.tweetsService.searchTweets(q ?? '', req.user.sub, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('user/:userId')
+  getTweetsByUser(@Request() req, @Param('userId', ParseIntPipe) userId: number, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.tweetsService.getTweetsByUser(userId, req.user.sub, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Get(':id')
+  getTweetDetail(@Request() req, @Param('id', ParseIntPipe) tweetId: number) {
+    return this.tweetsService.getTweetDetail(tweetId, req.user.sub);
   }
 }

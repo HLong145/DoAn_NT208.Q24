@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { toggleBookmark } from '../services/bookmarksApi';
+import { toggleLike } from '../services/likesApi';
+import { retweetTweet } from '../services/tweetsApi';
 
 interface TweetProps {
   id: string;
@@ -21,34 +24,92 @@ interface TweetProps {
   isReposted?: boolean;
   isBookmarked?: boolean;
   media?: string[];
+  onBookmarkChange?: (tweetId: string, bookmarked: boolean) => void;
 }
 
-export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media }: TweetProps) {
+export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange }: TweetProps) {
   const navigate = useNavigate();
   const [isLiked, setIsLiked] = useState(initialIsLiked || false);
   const [isReposted, setIsReposted] = useState(initialIsReposted || false);
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked || false);
   const [likesCount, setLikesCount] = useState(stats.likes);
   const [repostsCount, setRepostsCount] = useState(stats.reposts);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+
+    if (isLiking) {
+      return;
+    }
+
+    const nextLiked = !isLiked;
+    setIsLiked(nextLiked);
+    setLikesCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
+
+    try {
+      setIsLiking(true);
+      await toggleLike(Number(id));
+    } catch (error) {
+      console.error('Could not toggle like:', error);
+      setIsLiked((prev) => !prev);
+      setLikesCount((prev) => (nextLiked ? Math.max(0, prev - 1) : prev + 1));
+    } finally {
+      setIsLiking(false);
+    }
   };
 
-  const handleRepost = (e: React.MouseEvent) => {
+  const handleRepost = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsReposted(!isReposted);
-    setRepostsCount(prev => isReposted ? prev - 1 : prev + 1);
+
+    if (isReposting) {
+      return;
+    }
+
+    const nextReposted = !isReposted;
+    setIsReposted(nextReposted);
+    setRepostsCount((prev) => (nextReposted ? prev + 1 : Math.max(0, prev - 1)));
+
+    try {
+      setIsReposting(true);
+      if (nextReposted) {
+        await retweetTweet(Number(id));
+      }
+    } catch (error) {
+      console.error('Could not toggle repost:', error);
+      setIsReposted((prev) => !prev);
+      setRepostsCount((prev) => (nextReposted ? Math.max(0, prev - 1) : prev + 1));
+    } finally {
+      setIsReposting(false);
+    }
   };
 
-  const handleBookmark = (e: React.MouseEvent) => {
+  const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsBookmarked(!isBookmarked);
+
+    if (isBookmarking) {
+      return;
+    }
+
+    const nextBookmarked = !isBookmarked;
+    setIsBookmarked(nextBookmarked);
+
+    try {
+      setIsBookmarking(true);
+      const response = await toggleBookmark(Number(id));
+      setIsBookmarked(response.bookmarked);
+      onBookmarkChange?.(id, response.bookmarked);
+    } catch (error) {
+      console.error('Could not toggle bookmark:', error);
+      setIsBookmarked((prev) => !prev);
+    } finally {
+      setIsBookmarking(false);
+    }
   };
 
   const renderContentWithLinks = (text: string) => {
@@ -133,14 +194,14 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
             <span className="text-xs">{stats.replies}</span>
           </button>
           
-          <button className={`flex items-center gap-1.5 group transition-colors ${isReposted ? 'text-[#00ba7c]' : 'hover:text-[#00ba7c]'}`} onClick={handleRepost}>
+          <button className={`flex items-center gap-1.5 group transition-colors ${isReposted ? 'text-[#00ba7c]' : 'hover:text-[#00ba7c]'} ${isReposting ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleRepost} disabled={isReposting}>
             <div className={`p-2 rounded-full transition-colors ${isReposted ? 'bg-[#00ba7c]/10' : 'group-hover:bg-[#00ba7c]/10'}`}>
               <Repeat2 className="w-4 h-4" />
             </div>
             <span className="text-xs">{repostsCount}</span>
           </button>
           
-          <button className={`flex items-center gap-1.5 group transition-colors ${isLiked ? 'text-[#f91880]' : 'hover:text-[#f91880]'}`} onClick={handleLike}>
+          <button className={`flex items-center gap-1.5 group transition-colors ${isLiked ? 'text-[#f91880]' : 'hover:text-[#f91880]'} ${isLiking ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleLike} disabled={isLiking}>
             <div className={`p-2 rounded-full transition-colors ${isLiked ? 'bg-[#f91880]/10' : 'group-hover:bg-[#f91880]/10'}`}>
               <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
             </div>
@@ -155,7 +216,7 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
           </button>
 
           <div className="flex items-center gap-1">
-            <button className={`p-2 rounded-full transition-colors ${isBookmarked ? 'text-primary bg-primary/10' : 'hover:text-primary hover:bg-primary/10'}`} onClick={handleBookmark}>
+            <button className={`p-2 rounded-full transition-colors ${isBookmarked ? 'text-primary bg-primary/10' : 'hover:text-primary hover:bg-primary/10'} ${isBookmarking ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleBookmark} disabled={isBookmarking}>
               <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
             </button>
             <button className="p-2 rounded-full hover:text-primary hover:bg-primary/10 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>

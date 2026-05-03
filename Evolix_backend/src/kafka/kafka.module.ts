@@ -10,7 +10,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         options: {
           client: {
             clientId: 'evolix-backend', 
-            brokers: ['localhost:9092'], 
+            brokers: (process.env.KAFKA_BROKERS ?? 'localhost:9092').split(',').map((broker) => broker.trim()).filter(Boolean), 
           },
           consumer: {
             groupId: 'evolix-consumer-group', 

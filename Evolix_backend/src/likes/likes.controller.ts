@@ -1,5 +1,6 @@
 import { Controller, Post, Param, UseGuards, Request, ParseIntPipe, Inject } from '@nestjs/common';
 import { ClientKafka, EventPattern, Payload } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { AuthGuard } from '../auth/auth.guard';
 import { LikesService } from './likes.service';
 
@@ -16,7 +17,7 @@ export class LikesController {
   // Must be protected by AuthGuard so we know WHO is liking the tweet
   @UseGuards(AuthGuard)
   @Post(':tweetId')
-  toggleLike(
+  async toggleLike(
     @Request() req, 
     // ParseIntPipe safely converts the string from the URL into a number
     @Param('tweetId', ParseIntPipe) tweetId: number 
@@ -31,7 +32,7 @@ export class LikesController {
     };
 
     // Đẩy sự kiện vào Kafka để xử lý bất đồng bộ (Asynchronous processing)
-    this.kafkaClient.emit('tweet.like', JSON.stringify(messagePayload));
+    await firstValueFrom(this.kafkaClient.emit('tweet.like', JSON.stringify(messagePayload)));
     
     // Phản hồi thành công ngay lập tức cho người dùng
     return { 
@@ -49,7 +50,12 @@ export class LikesController {
   @EventPattern('tweet.like')
   async handleTweetLike(@Payload() message: any) {
     // Phân tích dữ liệu JSON thành Object (xử lý an toàn cho cả trường hợp data là string hoặc object)
-    const data = typeof message === 'string' ? JSON.parse(message) : (message.value ? message.value : message);
+    let data = message;
+    if (typeof message === 'string') {
+      data = JSON.parse(message);
+    } else if (message.value) {
+      data = message.value;
+    }
     
     // Đảm bảo dữ liệu được bóc tách an toàn nếu nó là chuỗi JSON lồng nhau
     const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
