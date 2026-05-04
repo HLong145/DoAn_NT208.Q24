@@ -32,7 +32,10 @@ export class AuthGuard implements CanActivate {
       }
 
       // attach payload and user entity
-      request['user'] = payload;
+      request['user'] = {
+        ...payload,
+        sub: userId,
+      };
       request['userEntity'] = user;
     } catch {
       throw new UnauthorizedException('Fake token nihahaha');

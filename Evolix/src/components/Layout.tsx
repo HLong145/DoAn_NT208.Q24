@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, Bell, Mail, User, Users, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { getCurrentUser, type AuthUser } from '../services/authApi';
-import { getUserProfile } from '../services/usersApi';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -60,33 +59,18 @@ export default function Layout() {
     setIsMoreMenuOpen(false);
   };
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined);
+  const { currentUser, session } = useAuth();
+  const currentUserAvatar = currentUser?.avatarUrl;
 
   useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const res = await getCurrentUser();
-        if (!mounted) return;
-        setCurrentUser(res.user);
-        try {
-          const profile = await getUserProfile(res.user.handle);
-          if (!mounted) return;
-          setCurrentUserAvatar(profile.user.avatarUrl ?? undefined);
-        } catch {
-          // ignore
-        }
-      } catch (err) {
-        setCurrentUser(null);
-        const path = location.pathname;
-        if (!['/login', '/register', '/forgot-password'].includes(path)) {
-          navigate('/login', { replace: true });
-        }
+    if (!session?.token) {
+      const path = location.pathname;
+      if (!['/login', '/register', '/forgot-password'].includes(path)) {
+        navigate('/login', { replace: true });
       }
-    })();
-    return () => { mounted = false; };
-  }, [location.pathname, navigate]);
+
+    }
+  }, [location.pathname, navigate, session?.token]);
 
   const userHandle = currentUser ? `@${currentUser.handle}` : '@janedoe';
   const displayName = currentUser?.name ?? 'Jane Doe';

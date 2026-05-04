@@ -78,6 +78,7 @@ describe('AuthService', () => {
         email: 'alice@example.com',
         handle: 'alice',
         createdAt: '2024-01-01T00:00:00.000Z',
+        avatarUrl: 'https://i.pravatar.cc/150?u=alice',
       },
     });
   });

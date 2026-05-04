@@ -1,11 +1,14 @@
 import { type FormEvent, useState } from 'react';
 import { Image as ImageIcon, Smile, ListTodo, Calendar, MapPin, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { createTweet } from '../services/tweetsApi';
 
 export default function Post() {
   const navigate = useNavigate();
   const [content, setContent] = useState('');
   const [location, setLocation] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const maxChars = 280;
   const charsLeft = maxChars - content.length;
 
@@ -17,13 +20,24 @@ export default function Post() {
     navigate('/');
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) return;
+    const trimmedContent = content.trim();
+    if (!trimmedContent) return;
 
-    alert('Post created successfully.');
-    setContent('');
-    setLocation('');
+    const trimmedLocation = location.trim();
+    const finalContent = trimmedLocation ? `${trimmedContent}\n\n📍 ${trimmedLocation}` : trimmedContent;
+
+    try {
+      setIsSubmitting(true);
+      setErrorMessage('');
+      await createTweet(finalContent);
+      navigate('/', { replace: true });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not publish tweet.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -42,6 +56,12 @@ export default function Post() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-bg-panel border border-border rounded-2xl p-4 sm:p-5">
+          {errorMessage ? (
+            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+              {errorMessage}
+            </div>
+          ) : null}
+
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -83,10 +103,10 @@ export default function Post() {
               <span className={`text-sm ${charsLeft <= 20 ? 'text-[#ff3b30]' : 'text-text-muted'}`}>{charsLeft}</span>
               <button
                 type="submit"
-                disabled={!content.trim()}
-                className={`rounded-full px-6 py-2.5 font-bold text-white transition-colors ${content.trim() ? 'bg-primary hover:bg-primary-hover' : 'bg-primary/50 cursor-not-allowed'}`}
+                disabled={!content.trim() || isSubmitting}
+                className={`rounded-full px-6 py-2.5 font-bold text-white transition-colors ${content.trim() && !isSubmitting ? 'bg-primary hover:bg-primary-hover' : 'bg-primary/50 cursor-not-allowed'}`}
               >
-                Post
+                {isSubmitting ? 'Posting...' : 'Post'}
               </button>
             </div>
           </div>

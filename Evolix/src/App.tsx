@@ -6,6 +6,7 @@
 import { type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
+import { AuthProvider } from './contexts/AuthContext';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
 import Notifications from './pages/Notifications';
@@ -57,36 +58,38 @@ function RootRedirect() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
-          <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
-          <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
-          <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
-            <Route index element={<Home />} />
-            <Route path="explore" element={<Explore />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="follow" element={<Follow />} />
-            <Route path="messages" element={<Messages />} />
-            <Route path="bookmarks" element={<Bookmarks />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="profile/:handle" element={<Profile />} />
-            <Route path="tweet/:id" element={<TweetDetail />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="settings/change-password" element={<ChangePassword />} />
-            <Route path="settings/account-info" element={<AccountInformation />} />
-            <Route path="settings/deactivate-account" element={<DeactivateAccount />} />
-            <Route path="settings/direct-messages" element={<DirectMessages />} />
-            <Route path="settings/notifications/push" element={<PushNotifications />} />
-            <Route path="settings/notifications/email" element={<EmailNotifications />} />
-            <Route path="add-account" element={<AddAccount />} />
-            <Route path="logout" element={<Logout />} />
-            <Route path="post" element={<Post />} />
-          </Route>
-          <Route path="*" element={<RootRedirect />} />
-        </Routes>
-      </BrowserRouter>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+            <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+            <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
+            <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
+              <Route index element={<Home />} />
+              <Route path="explore" element={<Explore />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="follow" element={<Follow />} />
+              <Route path="messages" element={<Messages />} />
+              <Route path="bookmarks" element={<Bookmarks />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="profile/:handle" element={<Profile />} />
+              <Route path="tweet/:id" element={<TweetDetail />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="settings/change-password" element={<ChangePassword />} />
+              <Route path="settings/account-info" element={<AccountInformation />} />
+              <Route path="settings/deactivate-account" element={<DeactivateAccount />} />
+              <Route path="settings/direct-messages" element={<DirectMessages />} />
+              <Route path="settings/notifications/push" element={<PushNotifications />} />
+              <Route path="settings/notifications/email" element={<EmailNotifications />} />
+              <Route path="add-account" element={<AddAccount />} />
+              <Route path="logout" element={<Logout />} />
+              <Route path="post" element={<Post />} />
+            </Route>
+            <Route path="*" element={<RootRedirect />} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

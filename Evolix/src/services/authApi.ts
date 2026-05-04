@@ -6,6 +6,7 @@ export type AuthUser = {
   email: string;
   handle: string;
   createdAt: string;
+  avatarUrl: string;
 };
 
 export type AuthSession = {
@@ -31,6 +32,15 @@ type AuthErrorResponse = {
 };
 
 const SESSION_STORAGE_KEY = 'evolix.auth.session';
+export const AUTH_SESSION_EVENT = 'evolix-auth-session-changed';
+
+function notifyAuthSessionChanged(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_SESSION_EVENT));
+}
 
 export async function loginUser(email: string, password: string): Promise<AuthSession> {
   return requestAuth<AuthSession>('/auth/login', {
@@ -119,6 +129,7 @@ export async function deactivateAccount(): Promise<DeactivateAccountResponse> {
 
 export function saveAuthSession(session: AuthSession): void {
   window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  notifyAuthSessionChanged();
 }
 
 export function clearAuthSession(): void {
@@ -127,6 +138,7 @@ export function clearAuthSession(): void {
   }
 
   window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  notifyAuthSessionChanged();
 }
 
 export function getAuthSession(): AuthSession | null {

@@ -14,6 +14,13 @@ type ConversationParticipant = {
   avatar: string;
 };
 
+type MessageSender = {
+  id: number;
+  name: string;
+  handle: string;
+  avatar: string;
+};
+
 export type ConversationThread = {
   id: string;
   participant: ConversationParticipant;
@@ -31,6 +38,7 @@ export type ConversationThread = {
 export type ConversationMessageItem = {
   id: string;
   senderId: number;
+  sender: MessageSender;
   content: string;
   timestamp: string;
   isMine: boolean;
@@ -91,15 +99,16 @@ export class MessagesService {
 
       const lastMessage = messages.find((message) => message.conversationId === conversation.id) ?? null;
       const unreadCount = messages.filter((message) => message.conversationId === conversation.id && message.senderId !== userId && !message.isRead).length;
+      const displayName = partner.displayName ?? partner.username;
       const avatarSeed = encodeURIComponent(String(partner.username));
 
       return [{
         id: conversation.id.toString(),
         participant: {
           id: partner.id,
-          name: partner.username,
+          name: displayName,
           handle: partner.username,
-          avatar: `https://i.pravatar.cc/150?u=${avatarSeed}`,
+          avatar: partner.avatarUrl ?? `https://i.pravatar.cc/150?u=${avatarSeed}`,
         },
         lastMessage: lastMessage ? {
           id: lastMessage.id.toString(),
@@ -126,6 +135,7 @@ export class MessagesService {
 
     const participantUser = await this.usersService.findOne(participantId);
     const conversation = await this.conversationRepository.save(this.conversationRepository.create({}));
+    const displayName = participantUser.displayName ?? participantUser.username;
 
     await this.participantRepository.save([
       this.participantRepository.create({ conversationId: conversation.id, userId }),
@@ -136,9 +146,9 @@ export class MessagesService {
       id: conversation.id.toString(),
       participant: {
         id: participantUser.id,
-        name: participantUser.username,
+        name: displayName,
         handle: participantUser.username,
-        avatar: `https://i.pravatar.cc/150?u=${encodeURIComponent(participantUser.username)}`,
+        avatar: participantUser.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(participantUser.username)}`,
       },
       lastMessage: null,
       unreadCount: 0,
@@ -154,6 +164,9 @@ export class MessagesService {
       order: { createdAt: 'ASC' },
     });
 
+    const senderUsers = await this.usersService.findManyByIds([...new Set(messages.map((message) => message.senderId))]);
+    const senderMap = new Map<number, (typeof senderUsers)[number]>(senderUsers.map((sender) => [sender.id, sender]));
+
     const unreadMessages = messages.filter((message) => message.senderId !== userId && !message.isRead);
     if (unreadMessages.length > 0) {
       for (const message of unreadMessages) {
@@ -167,6 +180,7 @@ export class MessagesService {
     return messages.map((message) => ({
       id: message.id.toString(),
       senderId: message.senderId,
+      sender: this.toMessageSender(senderMap.get(message.senderId), message.senderId),
       content: message.content,
       timestamp: this.formatRelativeTime(message.createdAt),
       isMine: message.senderId === userId,
@@ -191,12 +205,15 @@ export class MessagesService {
 
     await this.conversationRepository.update(conversationId, { updatedAt: new Date() });
 
+    const senderUser = await this.usersService.findOne(userId);
+
     const partnerIds = await this.getParticipantIds(conversationId, userId);
     const payload = {
       conversationId: conversationId.toString(),
       message: {
         id: message.id.toString(),
         senderId: userId,
+        sender: this.toMessageSender(senderUser, userId),
         content: message.content,
         timestamp: this.formatRelativeTime(message.createdAt),
         isMine: true,
@@ -222,6 +239,7 @@ export class MessagesService {
 
     const participantUser = await this.usersService.findOne(participantId);
     const conversation = await this.conversationRepository.findOne({ where: { id: existingConversation.conversationId } });
+    const displayName = participantUser.displayName ?? participantUser.username;
 
     if (!conversation) {
       return null;
@@ -231,9 +249,9 @@ export class MessagesService {
       id: conversation.id.toString(),
       participant: {
         id: participantUser.id,
-        name: participantUser.username,
+        name: displayName,
         handle: participantUser.username,
-        avatar: `https://i.pravatar.cc/150?u=${encodeURIComponent(participantUser.username)}`,
+        avatar: participantUser.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(participantUser.username)}`,
       },
       lastMessage: null,
       unreadCount: 0,
@@ -273,5 +291,16 @@ export class MessagesService {
 
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d`;
+  }
+
+  private toMessageSender(user: { id: number; username: string; displayName?: string | null; avatarUrl?: string | null } | undefined, fallbackUserId: number): MessageSender {
+    const username = user?.username ?? `user-${fallbackUserId}`;
+
+    return {
+      id: user?.id ?? fallbackUserId,
+      name: user?.displayName ?? username,
+      handle: username,
+      avatar: user?.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(username)}`,
+    };
   }
 }

@@ -40,7 +40,7 @@ export class UsersService {
     const user = await this.userRepository.findOne({
       where: { id },
       //DO NOT, SELECT PASSWORD ELSE -> SQLI
-      select: ['id', 'username', 'email', 'createdAt'], 
+      select: ['id', 'username', 'email', 'createdAt', 'displayName', 'avatarUrl'], 
     });
     
     if (!user) {
@@ -53,7 +53,7 @@ export class UsersService {
   async searchUsers(keyword: string) {
     return this.userRepository.find({
       where: { username: Like(`%${keyword}%`) }, //Find names with keywords
-      select: ['id', 'username', 'email'], //DO NOT PUT PASSWORD HERE
+      select: ['id', 'username', 'email', 'displayName', 'avatarUrl'], //DO NOT PUT PASSWORD HERE
       take: 10, //Only find maximum of 10 users
     });
   }
@@ -67,7 +67,7 @@ export class UsersService {
 
     return this.userRepository.find({
       where: { id: In(uniqueIds) },
-      select: ['id', 'username', 'email', 'createdAt'],
+      select: ['id', 'username', 'email', 'createdAt', 'displayName', 'avatarUrl'],
     });
   }
 

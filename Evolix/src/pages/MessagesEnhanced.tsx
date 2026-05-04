@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Edit, Image, Info, MessageCircle, Search, Send, Settings, Smile, Check, CheckCheck, Plus } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { createRealtimeSocket } from '../services/realtimeClient';
-import { getCurrentUser, type AuthUser } from '../services/authApi';
+import { useAuth } from '../contexts/AuthContext';
 import { createConversation, getConversationMessages, getConversationThreads, sendConversationMessage, type ConversationMessage, type ConversationThread } from '../services/messagesApi';
 import { searchUsers, type UserSummary } from '../services/usersApi';
 
@@ -11,6 +11,8 @@ type ChatFilter = typeof CHAT_FILTERS[number];
 
 const popularEmojis = ['😂', '😭', '🥺', '✨', '❤️', '🔥', '👍', '👏', '🙏', '🤔', '💀', '💯', '🥰', '😊', '👀'];
 
+const resolveDisplayName = (primary?: string | null, fallback?: string | null) => primary?.trim() || fallback?.trim() || 'Unknown';
+
 export default function MessagesEnhanced() {
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -18,7 +20,6 @@ export default function MessagesEnhanced() {
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<UserSummary[]>([]);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
   const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
@@ -34,6 +35,7 @@ export default function MessagesEnhanced() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeThreadIdRef = useRef<string | null>(null);
   const { chatTheme, setChatTheme, nickname, setNickname } = useTheme();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -57,12 +59,7 @@ export default function MessagesEnhanced() {
     const loadInitialData = async () => {
       try {
         setIsLoadingThreads(true);
-        const [currentUserResponse, threadList] = await Promise.all([
-          getCurrentUser(),
-          getConversationThreads(),
-        ]);
-
-        setCurrentUser(currentUserResponse.user);
+        const threadList = await getConversationThreads();
         setThreads(threadList);
         setActiveThreadId((previousThreadId) => previousThreadId ?? threadList[0]?.id ?? null);
       } catch (error) {
@@ -160,6 +157,37 @@ export default function MessagesEnhanced() {
   useEffect(() => {
     setNicknameInput(nickname);
   }, [nickname]);
+
+  const currentUserId = currentUser?.id ? Number(currentUser.id) : Number.NaN;
+  const hasCurrentUserId = Number.isFinite(currentUserId);
+
+  const isSelfMessage = (message: ConversationMessage) => {
+    if (hasCurrentUserId) {
+      return message.senderId === currentUserId;
+    }
+
+    return message.isMine;
+  };
+
+  const resolveSelfMessageName = () => currentUser?.name?.trim() || 'You';
+
+  const resolveSelfMessageAvatar = () => currentUser?.avatarUrl?.trim() || '';
+
+  const resolveMessageSenderName = (message: ConversationMessage) => {
+    if (isSelfMessage(message)) {
+      return resolveSelfMessageName();
+    }
+
+    return resolveDisplayName(activeThread?.participant.name, activeThread?.participant.handle);
+  };
+
+  const resolveMessageSenderAvatar = (message: ConversationMessage) => {
+    if (isSelfMessage(message)) {
+      return resolveSelfMessageAvatar();
+    }
+
+    return activeThread?.participant.avatar || '';
+  };
 
   const filteredThreads = threads.filter((thread) => {
     const matchesFilter = chatFilter === 'all' || (chatFilter === 'unread' && thread.unreadCount > 0) || chatFilter === 'direct';
@@ -314,13 +342,13 @@ export default function MessagesEnhanced() {
                   onClick={() => void startConversation(user.id)}
                   disabled={isStartingConversation}
                 >
-                      {(user as any).avatarUrl ? (
-                        <img src={(user as any).avatarUrl} alt={user.username} className="w-10 h-10 rounded-full object-cover" />
+                      {user.avatarUrl ? (
+                        <img src={user.avatarUrl} alt={resolveDisplayName(user.displayName, user.username)} className="w-10 h-10 rounded-full object-cover" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{user.username?.charAt(0)?.toUpperCase()}</div>
+                        <div className="w-10 h-10 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{resolveDisplayName(user.displayName, user.username).charAt(0)?.toUpperCase()}</div>
                       )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold truncate">{user.username}</div>
+                    <div className="font-bold truncate">{resolveDisplayName(user.displayName, user.username)}</div>
                     <div className="text-sm text-text-muted truncate">{user.email}</div>
                   </div>
                   <Plus className="w-4 h-4 text-text-muted" />
@@ -340,10 +368,10 @@ export default function MessagesEnhanced() {
                 onClick={() => setActiveThreadId(thread.id)}
                 className={`w-full p-4 flex gap-3 text-left transition-colors ${activeThreadId === thread.id ? 'bg-border/50 border-r-4 border-primary' : 'hover:bg-border/30'}`}
               >
-                <img src={thread.participant.avatar} alt={thread.participant.name} className="w-12 h-12 rounded-full object-cover" />
+                <img src={thread.participant.avatar} alt={resolveDisplayName(thread.participant.name, thread.participant.handle)} className="w-12 h-12 rounded-full object-cover" />
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline gap-2">
-                    <p className="font-bold truncate">{thread.participant.name}</p>
+                    <p className="font-bold truncate">{resolveDisplayName(thread.participant.name, thread.participant.handle)}</p>
                     <p className="text-xs text-text-muted whitespace-nowrap">{thread.lastMessage?.timestamp ?? thread.updatedAt}</p>
                   </div>
                   <p className={`text-sm truncate mt-1 ${thread.unreadCount > 0 ? 'font-bold text-text-base' : 'text-text-muted'}`}>
@@ -377,9 +405,9 @@ export default function MessagesEnhanced() {
                 <button className="md:hidden p-2 -ml-2 hover:bg-border/50 rounded-full" onClick={() => setActiveThreadId(null)}>
                   <svg viewBox="0 0 24 24" aria-hidden="true" className="w-5 h-5 fill-current"><g><path d="M7.414 13l5.043 5.04-1.414 1.42L3.586 12l7.457-7.46 1.414 1.42L7.414 11H21v2H7.414z"></path></g></svg>
                 </button>
-                <img src={activeThread.participant.avatar} alt={activeThread.participant.name} className="w-10 h-10 rounded-full object-cover" />
+                <img src={activeThread.participant.avatar} alt={resolveDisplayName(activeThread.participant.name, activeThread.participant.handle)} className="w-10 h-10 rounded-full object-cover" />
                 <div className="min-w-0">
-                  <p className="font-bold truncate">{activeThread.participant.name}</p>
+                  <p className="font-bold truncate">{resolveDisplayName(activeThread.participant.name, activeThread.participant.handle)}</p>
                   <p className="text-xs text-text-muted truncate">@{activeThread.participant.handle}</p>
                 </div>
               </div>
@@ -397,18 +425,22 @@ export default function MessagesEnhanced() {
                 <div className="text-center text-text-muted py-10">Say hello to start the conversation.</div>
               ) : (
                 messages.map((message) => (
-                  <div key={message.id} className={`flex gap-3 max-w-[80%] ${message.isMine ? 'self-end flex-row-reverse' : ''}`}>
-                    {!message.isMine && (
-                      <img src={activeThread.participant.avatar} alt={activeThread.participant.name} className="w-8 h-8 rounded-full object-cover self-end" />
+                  <div key={message.id} className={`flex gap-3 max-w-[80%] ${isSelfMessage(message) ? 'self-end flex-row-reverse' : ''}`}>
+                    {resolveMessageSenderAvatar(message) ? (
+                      <img src={resolveMessageSenderAvatar(message)} alt={resolveMessageSenderName(message)} className="w-8 h-8 rounded-full object-cover self-end" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-border/50 flex items-center justify-center self-end text-[11px] font-bold text-text-base">
+                        {resolveMessageSenderName(message).charAt(0)?.toUpperCase()}
+                      </div>
                     )}
                     <div className="flex flex-col">
-                      {message.isMine && nickname && <div className="text-xs text-text-muted mb-1 text-right">{nickname}</div>}
-                      <div className={`p-3 rounded-2xl ${message.isMine ? 'bg-primary text-white rounded-br-sm' : 'bg-border/50 text-text-base rounded-bl-sm'}`}>
+                      <div className={`text-xs text-text-muted mb-1 ${isSelfMessage(message) ? 'text-right' : ''}`}>{resolveMessageSenderName(message)}</div>
+                      <div className={`p-3 rounded-2xl ${isSelfMessage(message) ? 'bg-primary text-white rounded-br-sm' : 'bg-border/50 text-text-base rounded-bl-sm'}`}>
                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       </div>
-                      <div className={`flex items-center gap-1 mt-1 ${message.isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex items-center gap-1 mt-1 ${isSelfMessage(message) ? 'justify-end' : 'justify-start'}`}>
                         <span className="text-xs text-text-muted">{message.timestamp}</span>
-                        {message.isMine && (message.isRead ? <CheckCheck className="w-3 h-3 text-primary" /> : <Check className="w-3 h-3 text-text-muted" />)}
+                        {isSelfMessage(message) && (message.isRead ? <CheckCheck className="w-3 h-3 text-primary" /> : <Check className="w-3 h-3 text-text-muted" />)}
                       </div>
                     </div>
                   </div>

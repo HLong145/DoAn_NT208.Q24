@@ -23,6 +23,12 @@ export type ConversationThread = {
 export type ConversationMessage = {
   id: string;
   senderId: number;
+  sender: {
+    id: number;
+    name: string;
+    handle: string;
+    avatar: string;
+  };
   content: string;
   timestamp: string;
   isMine: boolean;

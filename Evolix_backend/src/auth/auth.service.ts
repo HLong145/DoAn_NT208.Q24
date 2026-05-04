@@ -11,6 +11,7 @@ type AuthUser = {
   email: string;
   handle: string;
   createdAt: string;
+  avatarUrl: string;
 };
 
 @Injectable()
@@ -157,6 +158,7 @@ export class AuthService {
       email: user.email,
       handle: user.username,
       createdAt: user.createdAt.toISOString(),
+      avatarUrl: user.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(user.username)}`,
     };
   }
 }
