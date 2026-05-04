@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { type ReactNode } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
@@ -27,16 +28,42 @@ import AddAccount from './pages/AddAccount';
 import Logout from './pages/Logout';
 import Post from './pages/Post';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { getAuthSession } from './services/authApi';
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const session = getAuthSession();
+
+  if (!session?.token) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <>{children}</>;
+}
+
+function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  const session = getAuthSession();
+
+  if (session?.token) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function RootRedirect() {
+  return <Navigate to={getAuthSession()?.token ? '/' : '/login'} replace />;
+}
 
 export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/" element={<Layout />}>
+          <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+          <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+          <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
+          <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
             <Route index element={<Home />} />
             <Route path="explore" element={<Explore />} />
             <Route path="notifications" element={<Notifications />} />
@@ -57,6 +84,7 @@ export default function App() {
             <Route path="logout" element={<Logout />} />
             <Route path="post" element={<Post />} />
           </Route>
+          <Route path="*" element={<RootRedirect />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

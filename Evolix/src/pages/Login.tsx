@@ -1,19 +1,24 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import GoogleAuthModal from '../components/GoogleAuthModal';
 import { loginUser, saveAuthSession } from '../services/authApi';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState(false);
 
-  const goToWebsite = () => {
-    navigate('/', { replace: true });
+  const redirectPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
+
+  const finishAuth = () => {
+    navigate(redirectPath, { replace: true });
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setIsSubmitting(true);
@@ -21,7 +26,7 @@ export default function Login() {
     try {
       const session = await loginUser(email, password);
       saveAuthSession(session);
-      goToWebsite();
+      finishAuth();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Login failed.');
     } finally {
@@ -29,8 +34,20 @@ export default function Login() {
     }
   };
 
+  const handleGoogleSuccess = (session: Awaited<ReturnType<typeof loginUser>>) => {
+    saveAuthSession(session);
+    finishAuth();
+  };
+
   return (
     <div className="min-h-screen bg-bg-base px-6 py-10 sm:py-16">
+      <GoogleAuthModal
+        isOpen={isGoogleAuthOpen}
+        mode="login"
+        onClose={() => setIsGoogleAuthOpen(false)}
+        onAuthenticated={handleGoogleSuccess}
+      />
+
       <div className="mx-auto max-w-[1120px] grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="hidden lg:block">
           <div className="w-16 h-16 bg-text-base text-bg-base flex items-center justify-center font-bold text-3xl rounded-md mb-10">
@@ -48,11 +65,11 @@ export default function Login() {
           <h2 className="text-[32px] font-extrabold tracking-tight mb-6">Sign in</h2>
 
           <div className="space-y-3 mb-6">
-            <button type="button" onClick={goToWebsite} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
+            <button type="button" onClick={() => { setErrorMessage(''); setIsGoogleAuthOpen(true); }} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
               Sign in with Google
             </button>
-            <button type="button" onClick={goToWebsite} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
+            <button type="button" onClick={() => setErrorMessage('Apple sign-in is not configured in this demo.')} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
               </svg>
@@ -99,9 +116,9 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-sm">
-            <Link to="/forgot-password" className="text-primary hover:underline block mb-2">Forgot password?</Link>
+            <Link to="/forgot-password" state={location.state} className="text-primary hover:underline block mb-2">Forgot password?</Link>
             <p className="text-text-muted">
-              Don't have an account? <Link to="/register" className="text-primary hover:underline">Sign up</Link>
+              Don't have an account? <Link to="/register" state={location.state} className="text-primary hover:underline">Sign up</Link>
             </p>
           </div>
         </div>
