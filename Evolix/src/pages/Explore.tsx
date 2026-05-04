@@ -88,12 +88,7 @@ export default function Explore() {
 
   const mockSuggestions: ExploreSuggestion[] = trendingTopics.length > 0
     ? trendingTopics.slice(0, 4).map((topic): ExploreSuggestion => ({ type: 'hashtag', text: topic.topic }))
-    : [
-        { type: 'hashtag', text: '#design' },
-        { type: 'hashtag', text: '#AIRevolution' },
-        { type: 'query', text: 'variable fonts' },
-        { type: 'query', text: 'quantum computing' },
-      ];
+    : [];
 
   const userSuggestions: ExploreSuggestion[] = userResults.map((user) => ({
     type: 'user' as const,
@@ -290,15 +285,17 @@ export default function Explore() {
             <div className="p-4 border-b border-border">
               <h2 className="text-2xl font-serif font-bold mb-2">The Lead Story</h2>
               <div className="aspect-video bg-border rounded-xl mb-4 overflow-hidden relative">
-                {leadStory?.image ? (
-                  <img src={leadStory.image} alt="Lead story" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-border to-bg-panel flex items-center justify-center text-text-muted">No image available</div>
-                )}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <h3 className="text-white text-xl font-bold">{leadStory?.title ?? 'The Evolution of Digital Typography'}</h3>
-                  <p className="text-white/80 text-sm">{leadStory?.byline ?? 'By Design Weekly'}</p>
-                </div>
+                  {leadStory ? (
+                    <>
+                      <img src={leadStory.image} alt="Lead story" className="w-full h-full object-cover" />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                        <h3 className="text-white text-xl font-bold">{leadStory.title}</h3>
+                        <p className="text-white/80 text-sm">{leadStory.byline}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-border to-bg-panel flex items-center justify-center text-text-muted">No lead story</div>
+                  )}
               </div>
             </div>
 

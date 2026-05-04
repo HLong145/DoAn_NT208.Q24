@@ -196,14 +196,10 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
           What's happening
         </h2>
         <div>
-          {(trendingTopics.length > 0 ? trendingTopics : [
-            { topic: '#design', posts: '120K' },
-            { topic: '#AIRevolution', posts: '85K' },
-            { topic: '#webdev', posts: '45K' },
-            { topic: '#webperf', posts: '32K' },
-          ] as TrendingTopic[]).map((topic, index) => (
+          {trendingTopics.length > 0 ? (
+            trendingTopics.map((topic, index) => (
               <div 
-                key={index} 
+                key={`${topic.topic}-${index}`} 
                 className="cursor-pointer group flex justify-between items-start px-4 py-3 hover:bg-border transition-colors"
                 onClick={() => handleSearch(topic.topic)}
               >
@@ -216,7 +212,10 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+            ))
+          ) : (
+            <div className="p-4 text-text-muted">No trending topics</div>
+          )}
           <button className="w-full text-left px-4 py-3 text-primary hover:bg-border transition-colors text-[15px]">Show more</button>
         </div>
       </div>

@@ -166,17 +166,10 @@ export class TweetsService {
       .slice(0, limit)
       .map(([tag, cnt]) => ({ topic: tag, posts: `${cnt} posts` }));
 
-    // Fallback if no hashtags found: return a small default list
-    const result = topics.length === 0 ? [
-      { topic: '#design', posts: '120K' },
-      { topic: '#AIRevolution', posts: '85K' },
-      { topic: '#webdev', posts: '45K' },
-    ] : topics;
+    // Cache results (may be empty)
+    await this.cacheManager.set(cacheKey, topics, 300);
 
-    // Cache for 5 minutes
-    await this.cacheManager.set(cacheKey, result, 300);
-
-    return result.slice(0, limit);
+    return topics.slice(0, limit);
   }
 
   /**
@@ -205,15 +198,9 @@ export class TweetsService {
       await this.cacheManager.set(cacheKey, story, 60);
       return story;
     }
-
-    const fallback = {
-      title: 'The Evolution of Digital Typography',
-      byline: 'By Design Weekly',
-      image: 'https://picsum.photos/seed/explore/800/400',
-    };
-
-    await this.cacheManager.set(cacheKey, fallback, 60);
-    return fallback;
+    // No lead story available
+    await this.cacheManager.del(cacheKey);
+    return null;
   }
 
   /**

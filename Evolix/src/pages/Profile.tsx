@@ -54,16 +54,23 @@ export default function Profile() {
 
   useEffect(() => {
     const loadProfile = async () => {
-      if (!handle) {
-        setErrorMessage('Profile handle is missing.');
-        setIsLoadingProfile(false);
-        return;
+      let resolvedHandle = handle;
+
+      if (!resolvedHandle) {
+        try {
+          const me = await getCurrentUser();
+          resolvedHandle = me.user.handle;
+        } catch (err) {
+          setErrorMessage('Profile handle is missing.');
+          setIsLoadingProfile(false);
+          return;
+        }
       }
 
       try {
         setIsLoadingProfile(true);
         setErrorMessage('');
-        const response = await getUserProfile(handle);
+        const response = await getUserProfile(resolvedHandle);
         setProfile(response);
         setEditForm({
           name: response.user.name,

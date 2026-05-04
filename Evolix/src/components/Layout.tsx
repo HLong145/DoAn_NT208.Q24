@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, Bell, Mail, User, Users, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCurrentUser, type AuthUser } from '../services/authApi';
@@ -12,6 +12,7 @@ export default function Layout() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const isMessagesRoute = location.pathname.startsWith('/messages');
 
   const { fontSize, setFontSize, colorTheme, setColorTheme, backgroundTheme, setBackgroundTheme } = useTheme();
@@ -78,10 +79,14 @@ export default function Layout() {
         }
       } catch (err) {
         setCurrentUser(null);
+        const path = location.pathname;
+        if (!['/login', '/register', '/forgot-password'].includes(path)) {
+          navigate('/login', { replace: true });
+        }
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [location.pathname, navigate]);
 
   const userHandle = currentUser ? `@${currentUser.handle}` : '@janedoe';
   const displayName = currentUser?.name ?? 'Jane Doe';
@@ -129,7 +134,7 @@ export default function Layout() {
               <Mail className="w-7 h-7" strokeWidth={2.2} />
               <span className={navTextClass} style={navTextStyle}>Chat</span>
             </NavLink>
-            <NavLink to="/profile/janedoe" className={({ isActive }) => navLinkClass(isActive)}>
+            <NavLink to="/profile" className={({ isActive }) => navLinkClass(isActive)}>
               <User className="w-7 h-7" strokeWidth={2.2} />
               <span className={navTextClass} style={navTextStyle}>Profile</span>
             </NavLink>
