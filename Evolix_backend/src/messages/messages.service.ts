@@ -6,6 +6,7 @@ import { DirectMessageParticipant } from './entities/direct-message-participant.
 import { DirectMessage } from './entities/direct-message.entity';
 import { UsersService } from '../users/users.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type ConversationParticipant = {
   id: number;
@@ -56,6 +57,7 @@ export class MessagesService {
     private readonly messageRepository: Repository<DirectMessage>,
     private readonly usersService: UsersService,
     private readonly realtimeGateway: RealtimeGateway,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getThreads(userId: number): Promise<ConversationThread[]> {
@@ -208,6 +210,8 @@ export class MessagesService {
     const senderUser = await this.usersService.findOne(userId);
 
     const partnerIds = await this.getParticipantIds(conversationId, userId);
+    await this.notificationsService.createForRecipients(partnerIds, userId, 'message', null, message.content);
+
     const payload = {
       conversationId: conversationId.toString(),
       message: {

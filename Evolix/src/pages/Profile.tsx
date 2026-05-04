@@ -3,7 +3,7 @@ import { Calendar, MapPin, Link as LinkIcon, MoreHorizontal, X, Camera, ArrowLef
 import { useNavigate, useParams } from 'react-router-dom';
 import Tweet from '../components/Tweet';
 import TrendingSidebar from '../components/TrendingSidebar';
-import { getCurrentUser, type AuthUser } from '../services/authApi';
+import { useAuth } from '../contexts/AuthContext';
 import { toggleFollow } from '../services/followsApi';
 import { getTweetsByUser, type TimelineTweet } from '../services/tweetsApi';
 import { getUserProfile, updateMyProfile, type UpdateProfilePayload, type UserProfile } from '../services/usersApi';
@@ -11,7 +11,7 @@ import { getUserProfile, updateMyProfile, type UpdateProfilePayload, type UserPr
 export default function Profile() {
   const { handle } = useParams();
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const { currentUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileTweets, setProfileTweets] = useState<TimelineTweet[]>([]);
   const [activeTab, setActiveTab] = useState<'tweets' | 'replies' | 'media' | 'likes'>('tweets');
@@ -39,32 +39,13 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const response = await getCurrentUser();
-        setCurrentUser(response.user);
-      } catch (error) {
-        console.error('Could not load current user:', error);
-        setCurrentUser(null);
-      }
-    };
-
-    void loadCurrentUser();
-  }, []);
-
-  useEffect(() => {
     const loadProfile = async () => {
-      let resolvedHandle = handle;
+      let resolvedHandle = handle ?? currentUser?.handle;
 
       if (!resolvedHandle) {
-        try {
-          const me = await getCurrentUser();
-          resolvedHandle = me.user.handle;
-        } catch (err) {
-          setErrorMessage('Profile handle is missing.');
-          setIsLoadingProfile(false);
-          return;
-        }
+        setErrorMessage('Profile handle is missing.');
+        setIsLoadingProfile(false);
+        return;
       }
 
       try {
@@ -89,7 +70,7 @@ export default function Profile() {
     };
 
     void loadProfile();
-  }, [handle]);
+  }, [handle, currentUser?.handle]);
 
   useEffect(() => {
     const loadProfileTweets = async () => {
@@ -176,17 +157,18 @@ export default function Profile() {
 
     try {
       setIsUpdatingFollow(true);
-      await toggleFollow(profile.user.id);
+      const result = await toggleFollow(profile.user.id);
       setProfile((previous) => previous ? {
         ...previous,
         user: {
           ...previous.user,
-          isFollowing: !previous.user.isFollowing,
-          followersCount: previous.user.isFollowing ? previous.user.followersCount - 1 : previous.user.followersCount + 1,
+          isFollowing: result.isFollowing,
+          followersCount: result.isFollowing ? previous.user.followersCount + 1 : previous.user.followersCount - 1,
         },
       } : previous);
     } catch (error) {
       console.error('Could not toggle follow state:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Could not toggle follow state.');
     } finally {
       setIsUpdatingFollow(false);
     }

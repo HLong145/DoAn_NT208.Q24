@@ -35,7 +35,7 @@ export function getFollowingIds() {
 }
 
 export function toggleFollow(followingId: number) {
-  return apiRequest<{ message: string; status: string }>(`/follows/${followingId}`, {
+  return apiRequest<{ message: string; isFollowing: boolean }>(`/follows/${followingId}`, {
     method: 'POST',
   });
 }

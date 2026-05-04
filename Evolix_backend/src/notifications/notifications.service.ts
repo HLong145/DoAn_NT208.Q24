@@ -134,16 +134,17 @@ export class NotificationsService {
     return notifications.map((notification) => {
       const actor = actorMap.get(notification.actorId);
       const handle = actor?.username ?? `user${notification.actorId}`;
-      const avatarSeed = encodeURIComponent(handle);
+      const displayName = actor?.displayName?.trim() || actor?.username || `User ${notification.actorId}`;
+      const avatarUrl = actor?.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(handle)}`;
 
       return {
         id: notification.id.toString(),
         type: notification.type,
         actor: {
           id: notification.actorId,
-          name: actor?.username ?? `User ${notification.actorId}`,
+          name: displayName,
           handle,
-          avatar: `https://i.pravatar.cc/150?u=${avatarSeed}`,
+          avatar: avatarUrl,
         },
         content: notification.content ?? this.buildDefaultContent(notification.type, handle),
         timestamp: this.formatRelativeTime(notification.createdAt),
@@ -163,6 +164,8 @@ export class NotificationsService {
         return `@${handle} replied to your post`;
       case 'tweet':
         return `@${handle} posted a new tweet`;
+      case 'message':
+        return `@${handle} sent you a message`;
       default:
         return 'You have a new notification';
     }

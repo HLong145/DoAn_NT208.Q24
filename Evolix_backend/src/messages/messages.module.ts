@@ -7,9 +7,10 @@ import { DirectMessageParticipant } from './entities/direct-message-participant.
 import { DirectMessage } from './entities/direct-message.entity';
 import { UsersModule } from '../users/users.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DirectMessageConversation, DirectMessageParticipant, DirectMessage]), UsersModule, RealtimeModule],
+  imports: [TypeOrmModule.forFeature([DirectMessageConversation, DirectMessageParticipant, DirectMessage]), UsersModule, RealtimeModule, NotificationsModule],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, Bell, Mail, User, Users, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationsContext';
 
 export default function Layout() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -60,7 +61,9 @@ export default function Layout() {
   };
 
   const { currentUser, session } = useAuth();
+  const { unreadCount } = useNotifications();
   const currentUserAvatar = currentUser?.avatarUrl;
+  const notificationBadgeLabel = unreadCount > 99 ? '99+' : unreadCount.toString();
 
   useEffect(() => {
     if (!session?.token) {
@@ -106,7 +109,11 @@ export default function Layout() {
             <NavLink to="/notifications" className={({ isActive }) => navLinkClass(isActive)}>
               <div className="relative">
                 <Bell className="w-7 h-7" strokeWidth={2.2} />
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-[#ff3b30] rounded-full border-2 border-bg-base"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#ff3b30] border-2 border-bg-base text-[10px] leading-none text-white flex items-center justify-center font-bold">
+                    {notificationBadgeLabel}
+                  </span>
+                )}
               </div>
               <span className={navTextClass} style={navTextStyle}>Notifications</span>
             </NavLink>
@@ -238,7 +245,11 @@ export default function Layout() {
         </NavLink>
         <NavLink to="/notifications" className={({ isActive }) => `relative p-3 rounded-full transition-colors ${isActive ? 'text-text-base' : 'text-text-muted hover:bg-border/50'}`}>
           <Bell className="w-6 h-6" strokeWidth={2.5} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-[#ff3b30] rounded-full border-2 border-bg-base"></span>
+          {unreadCount > 0 && (
+            <span className="absolute top-2 right-2 min-w-4 h-4 px-1 rounded-full bg-[#ff3b30] border-2 border-bg-base text-[10px] leading-none text-white flex items-center justify-center font-bold">
+              {notificationBadgeLabel}
+            </span>
+          )}
         </NavLink>
         <NavLink to="/messages" className={({ isActive }) => `p-3 rounded-full transition-colors ${isActive ? 'text-text-base' : 'text-text-muted hover:bg-border/50'}`}>
           <Mail className="w-6 h-6" strokeWidth={2.5} />

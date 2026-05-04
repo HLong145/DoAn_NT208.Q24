@@ -1,7 +1,7 @@
 import { buildApiUrl } from './apiConfig';
 import { getAuthSession } from './authApi';
 
-export type NotificationType = 'like' | 'follow' | 'reply' | 'tweet';
+export type NotificationType = 'like' | 'follow' | 'reply' | 'tweet' | 'message';
 
 export type NotificationItem = {
   id: string;

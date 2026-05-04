@@ -1,14 +1,10 @@
-import { Controller, Post, Param, UseGuards, Request, ParseIntPipe, Inject, Get } from '@nestjs/common';
-import { ClientKafka, EventPattern, Payload } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { Controller, Post, Param, UseGuards, Request, ParseIntPipe, Get } from '@nestjs/common';
 import { FollowsService } from './follows.service';
 import { AuthGuard } from '../auth/auth.guard'; 
 
 @Controller('follows')
 export class FollowsController {
   constructor(
-    // Tiêm Kafka Client vào để xử lý hàng đợi (Message Queue)
-    @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
     // Inject FollowsService để thực thi logic thao tác với Cơ sở dữ liệu
     private readonly followsService: FollowsService
   ) {}
@@ -30,47 +26,6 @@ export class FollowsController {
   ) {
     // Extract the follower's ID from the JWT token
     const followerId = req.user.sub;
-    
-    // Đóng gói dữ liệu người dùng đi theo dõi và người được theo dõi
-    const messagePayload = {
-      followerId: followerId,
-      followingId: followingId,
-    };
-
-    // Đẩy sự kiện vào Kafka để xử lý bất đồng bộ (Asynchronous processing)
-    await firstValueFrom(this.kafkaClient.emit('user.follow', JSON.stringify(messagePayload)));
-
-    // Phản hồi thành công ngay lập tức cho người dùng
-    return {
-      message: 'Follow request is being processed asynchronously',
-      status: 'pending'
-    };
-  }
-
-  /**
-   * Khai báo EventPattern để lắng nghe sự kiện từ Kafka.
-   * Khi sự kiện 'user.follow' được đẩy vào hàng đợi, hàm này sẽ tự động được kích hoạt.
-   * 
-   * @param message - Dữ liệu payload được gửi kèm trong sự kiện
-   */
-  @EventPattern('user.follow')
-  async handleUserFollow(@Payload() message: any) {
-    // Phân tích dữ liệu JSON thành Object (xử lý an toàn cho cả trường hợp data là string hoặc object)
-    let data = message;
-    if (typeof message === 'string') {
-      data = JSON.parse(message);
-    } else if (message.value) {
-      data = message.value;
-    }
-    
-    // Đảm bảo dữ liệu được bóc tách an toàn nếu nó là chuỗi JSON lồng nhau
-    const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-    const { followerId, followingId } = parsedData;
-
-    // Gọi service để thực thi logic theo dõi/bỏ theo dõi trong cơ sở dữ liệu MySQL
-    await this.followsService.toggleFollow(followerId, followingId);
-    
-    // Ghi log ra Terminal để theo dõi tiến trình làm việc của Background Worker
-    console.log(`[Kafka Consumer] Successfully processed follow from User ID: ${followerId} to User ID: ${followingId}`);
+    return this.followsService.toggleFollow(followerId, followingId);
   }
 }

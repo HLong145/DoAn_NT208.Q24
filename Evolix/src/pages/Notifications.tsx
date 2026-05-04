@@ -1,48 +1,32 @@
-import { useEffect, useState } from 'react';
-import { Bell, Heart, UserPlus, MessageCircle, Check, Settings, RefreshCcw } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, Heart, UserPlus, MessageCircle, Mail, Check, Settings, RefreshCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
-import { getNotifications, markAllNotificationsRead, type NotificationItem } from '../services/notificationsApi';
+import { type NotificationItem } from '../services/notificationsApi';
+import { useNotifications } from '../contexts/NotificationsContext';
 
 export default function Notifications() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        setIsLoading(true);
-        setErrorMessage('');
-        const items = await getNotifications();
-        setNotifications(items);
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Could not load notifications.');
-        setNotifications([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void loadNotifications();
-  }, []);
-
-  const markAllAsRead = async () => {
-    try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not update notifications.');
-    }
-  };
+  const {
+    notifications,
+    isLoading,
+    errorMessage,
+    refreshNotifications,
+    markAllAsRead,
+    acknowledgeNotification,
+  } = useNotifications();
 
   const handleNotificationClick = (notification: NotificationItem) => {
-    setNotifications((prev) => prev.map((item) => item.id === notification.id ? { ...item, isRead: true } : item));
+    acknowledgeNotification(notification.id);
 
     if (notification.type === 'follow') {
       navigate(`/profile/${notification.actor.handle}`);
+      return;
+    }
+
+    if (notification.type === 'message') {
+      navigate('/messages');
       return;
     }
 
@@ -63,7 +47,7 @@ export default function Notifications() {
             <h1 className="text-[20px] font-extrabold tracking-tight">Notifications</h1>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => void refreshNotifications()}
                 className="p-2 hover:bg-border/50 rounded-full transition-colors text-text-muted hover:text-text-base"
                 title="Refresh"
               >
@@ -121,6 +105,7 @@ export default function Notifications() {
                           {notification.type === 'like' && <Heart className="w-7 h-7 text-[#f91880] fill-current" />}
                           {notification.type === 'follow' && <UserPlus className="w-7 h-7 text-primary fill-current" />}
                           {notification.type === 'reply' && <MessageCircle className="w-7 h-7 text-primary fill-current" />}
+                          {notification.type === 'message' && <Mail className="w-7 h-7 text-primary fill-current" />}
                           {notification.type === 'tweet' && <Bell className="w-7 h-7 text-primary fill-current" />}
                 </div>
                 
@@ -138,6 +123,7 @@ export default function Notifications() {
                             {notification.type === 'like' && ' liked your post'}
                             {notification.type === 'follow' && ' followed you'}
                             {notification.type === 'reply' && ' replied to your post'}
+                            {notification.type === 'message' && ' sent you a message'}
                             {notification.type === 'tweet' && ' posted a new tweet'}
                   </div>
                   
