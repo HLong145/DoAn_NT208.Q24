@@ -93,7 +93,7 @@ export default function Layout() {
             }}
             className={`w-12 h-12 flex items-center justify-center ${isMessagesRoute ? '' : 'xl:justify-start xl:w-full xl:px-3'} rounded-full hover:bg-border/50 transition-colors mb-2`}
           >
-            <span className="text-[34px] font-semibold leading-none tracking-tight">E</span>
+            <img src="/images/web_logo.jpg" alt="Logo" className="w-9 h-9 object-contain rounded-full" />
           </NavLink>
 
           {/* Navigation Links */}
