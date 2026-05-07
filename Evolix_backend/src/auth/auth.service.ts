@@ -96,6 +96,44 @@ export class AuthService {
     };
   }
 
+  async changeEmail(userId: number, newEmail: string, currentPassword: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+    if (!user.isActive) throw new UnauthorizedException('This account has been deactivated');
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) throw new UnauthorizedException('Current password is incorrect');
+
+    const existing = await this.userRepository.findOne({ where: { email: newEmail } });
+    if (existing) throw new BadRequestException('Email is already in use');
+
+    user.email = newEmail;
+    await this.userRepository.save(user);
+
+    return { message: 'Email updated successfully', email: newEmail };
+  }
+
+  async changeHandle(userId: number, newHandle: string, currentPassword: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+    if (!user.isActive) throw new UnauthorizedException('This account has been deactivated');
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) throw new UnauthorizedException('Current password is incorrect');
+
+    if (!/^[a-zA-Z0-9_]{1,15}$/.test(newHandle)) {
+      throw new BadRequestException('Username can only contain letters, numbers, and underscores (max 15 characters)');
+    }
+
+    const existing = await this.userRepository.findOne({ where: { username: newHandle } });
+    if (existing) throw new BadRequestException('Username is already taken');
+
+    user.username = newHandle;
+    await this.userRepository.save(user);
+
+    return this.buildAuthSession(user);
+  }
+
   async changePassword(userId: number, currentPassword: string, newPassword: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
 

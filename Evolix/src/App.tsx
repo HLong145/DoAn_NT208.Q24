@@ -17,6 +17,9 @@ import Profile from './pages/Profile';
 import TweetDetail from './pages/TweetDetail';
 import Settings from './pages/Settings';
 import ChangePassword from './pages/ChangePassword';
+import ChangeDisplayName from './pages/ChangeDisplayName';
+import ChangeEmail from './pages/ChangeEmail';
+import ChangeUsername from './pages/ChangeUsername';
 import AccountInformation from './pages/AccountInformation';
 import DeactivateAccount from './pages/DeactivateAccount';
 import DirectMessages from './pages/DirectMessages';
@@ -79,6 +82,9 @@ export default function App() {
                 <Route path="tweet/:id" element={<TweetDetail />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="settings/change-password" element={<ChangePassword />} />
+                <Route path="settings/change-name" element={<ChangeDisplayName />} />
+                <Route path="settings/change-email" element={<ChangeEmail />} />
+                <Route path="settings/change-username" element={<ChangeUsername />} />
                 <Route path="settings/account-info" element={<AccountInformation />} />
                 <Route path="settings/deactivate-account" element={<DeactivateAccount />} />
                 <Route path="settings/direct-messages" element={<DirectMessages />} />

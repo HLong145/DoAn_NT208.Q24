@@ -31,3 +31,22 @@ export class ChangePasswordDto {
   @MinLength(8)
   newPassword: string;
 }
+
+export class ChangeEmailDto {
+  @IsEmail()
+  newEmail: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currentPassword: string;
+}
+
+export class ChangeHandleDto {
+  @IsString()
+  @IsNotEmpty()
+  newHandle: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currentPassword: string;
+}

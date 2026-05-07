@@ -1,31 +1,21 @@
-import { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, type AuthUser } from '../services/authApi';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AccountInformation() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [errorMessage, setErrorMessage] = useState('');
+  const { currentUser } = useAuth();
 
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const response = await getCurrentUser();
-        setCurrentUser(response.user);
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Could not load account information.');
-      }
-    };
+  const joined = currentUser?.createdAt
+    ? new Date(currentUser.createdAt).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    : 'Not available';
 
-    void loadCurrentUser();
-  }, []);
-
-  const rows = [
-    { label: 'Username', value: currentUser?.handle ?? 'Not available' },
-    { label: 'Email', value: currentUser?.email ?? 'Not available' },
-    { label: 'Display name', value: currentUser?.name ?? 'Not available' },
-    { label: 'Account creation', value: currentUser ? new Date(currentUser.createdAt).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Not available' },
+  const rows: { label: string; value: string; path?: string }[] = [
+    { label: 'Username', value: currentUser?.handle ? `@${currentUser.handle}` : 'Not available', path: '/settings/change-username' },
+    { label: 'Display name', value: currentUser?.name || 'Not set', path: '/settings/change-name' },
+    { label: 'Email', value: currentUser?.email || 'Not available', path: '/settings/change-email' },
+    { label: 'Password', value: '••••••••', path: '/settings/change-password' },
+    { label: 'Account creation', value: joined },
     { label: 'Phone', value: 'Not connected' },
   ];
 
@@ -46,19 +36,18 @@ export default function AccountInformation() {
           Review and update the information associated with your account.
         </p>
 
-        {errorMessage && <div className="px-4 pb-3 text-sm text-red-500">{errorMessage}</div>}
-
         <div className="border-y border-border">
           {rows.map((row) => (
             <button
               key={row.label}
-              className="w-full px-4 py-4 hover:bg-border/50 transition-colors flex items-center justify-between text-left"
+              onClick={() => row.path && navigate(row.path)}
+              className={`w-full px-4 py-4 transition-colors flex items-center justify-between text-left ${row.path ? 'hover:bg-border/50 cursor-pointer' : 'cursor-default'}`}
             >
               <div>
                 <p className="text-sm text-text-muted">{row.label}</p>
                 <p className="text-[15px] text-text-base mt-0.5">{row.value}</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-text-muted" />
+              {row.path && <ChevronRight className="w-5 h-5 text-text-muted flex-shrink-0" />}
             </button>
           ))}
         </div>

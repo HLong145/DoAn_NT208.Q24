@@ -24,15 +24,15 @@ export default function ChangePassword() {
     setSuccess(false);
 
     if (!currentPassword) {
-      setError('Vui lòng nhập mật khẩu hiện tại');
+      setError('Please enter your current password.');
       return;
     }
     if (newPassword.length < 8) {
-      setError('Mật khẩu mới phải có ít nhất 8 ký tự');
+      setError('New password must be at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp');
+      setError('Passwords do not match.');
       return;
     }
 

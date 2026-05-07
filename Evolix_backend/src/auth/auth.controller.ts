@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Request, UseGuards, Patch } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
-import { ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto';
+import { ChangeEmailDto, ChangeHandleDto, ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -29,6 +29,18 @@ export class AuthController {
   @Patch('password')
   changePassword(@Request() req, @Body() body: ChangePasswordDto) {
     return this.authService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('email')
+  changeEmail(@Request() req, @Body() body: ChangeEmailDto) {
+    return this.authService.changeEmail(req.user.sub, body.newEmail, body.currentPassword);
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('handle')
+  changeHandle(@Request() req, @Body() body: ChangeHandleDto) {
+    return this.authService.changeHandle(req.user.sub, body.newHandle, body.currentPassword);
   }
 
   @UseGuards(AuthGuard)

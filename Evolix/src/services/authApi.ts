@@ -104,6 +104,47 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return payload as ChangePasswordResponse;
 }
 
+export type ChangeEmailResponse = {
+  message: string;
+  email: string;
+};
+
+export async function changeEmail(newEmail: string, currentPassword: string): Promise<ChangeEmailResponse> {
+  const session = getAuthSession();
+  if (!session?.token) throw new Error('Please sign in to continue.');
+
+  const response = await fetch(buildApiUrl('/auth/email'), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`,
+    },
+    body: JSON.stringify({ newEmail, currentPassword }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as ChangeEmailResponse & AuthErrorResponse;
+  if (!response.ok) throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  return payload as ChangeEmailResponse;
+}
+
+export async function changeHandle(newHandle: string, currentPassword: string): Promise<AuthSession> {
+  const session = getAuthSession();
+  if (!session?.token) throw new Error('Please sign in to continue.');
+
+  const response = await fetch(buildApiUrl('/auth/handle'), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`,
+    },
+    body: JSON.stringify({ newHandle, currentPassword }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as AuthSession & AuthErrorResponse;
+  if (!response.ok) throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  return payload as AuthSession;
+}
+
 export async function deactivateAccount(): Promise<DeactivateAccountResponse> {
   const session = getAuthSession();
 
