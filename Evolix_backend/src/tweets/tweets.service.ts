@@ -89,14 +89,14 @@ export class TweetsService {
    * @param content - Nội dung của bài viết.
    * @returns Thông báo thành công và dữ liệu bài viết vừa tạo.
    */
-  async createTweet(userId: number, content: string, mediaUrls?: string) {
-    if (!content) {
-      throw new BadRequestException('Content cannot be empty');
+  async createTweet(userId: number, content: string | undefined, mediaUrls?: string) {
+    if (!content && !mediaUrls) {
+      throw new BadRequestException('Content or media is required');
     }
 
     const newTweet = this.tweetRepository.create({
       userId: userId,
-      content: content,
+      content: content ?? '',
       mediaUrls: mediaUrls,
       isRetweet: false,
     });

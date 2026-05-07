@@ -32,7 +32,7 @@ export class TweetsController {
     const mediaUrls = files?.length
       ? files.map((f) => `/uploads/${f.filename}`).join(',')
       : undefined;
-    return this.tweetsService.createTweet(userId, body.content, mediaUrls);
+    return this.tweetsService.createTweet(userId, body.content || undefined, mediaUrls);
   }
 
   /**
