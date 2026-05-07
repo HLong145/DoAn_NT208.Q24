@@ -57,6 +57,14 @@
     margin: 0;
     letter-spacing: -0.01em;
   }
+
+  button, [role="button"], label[for], input[type="file"] + label {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
 }
 
 /* Map utility classes to CSS variables so display color theme affects all buttons */

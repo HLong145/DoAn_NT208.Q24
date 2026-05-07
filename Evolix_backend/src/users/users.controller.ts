@@ -1,7 +1,18 @@
-import { Controller, Get, Param, Query, UseGuards, Patch, Request, Body } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Patch, Post, Request, Body, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+
+const uploadStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads'),
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `${unique}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('users')
 export class UsersController {
@@ -31,6 +42,14 @@ export class UsersController {
   @Patch('me/profile')
   updateMyProfile(@Request() req, @Body() body: UpdateProfileDto) {
     return this.usersService.updateMyProfile(req.user.sub, body ?? {});
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('me/upload')
+  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
+  uploadProfileImage(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new Error('No file uploaded');
+    return { url: `/uploads/${file.filename}` };
   }
 
   // API Stalk Profile: GET http://localhost:3000/users/id

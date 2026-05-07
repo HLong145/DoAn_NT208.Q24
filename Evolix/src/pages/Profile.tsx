@@ -6,7 +6,8 @@ import TrendingSidebar from '../components/TrendingSidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { toggleFollow } from '../services/followsApi';
 import { getTweetsByUser, type TimelineTweet } from '../services/tweetsApi';
-import { getUserProfile, updateMyProfile, type UpdateProfilePayload, type UserProfile } from '../services/usersApi';
+import { getUserProfile, updateMyProfile, uploadProfileImage, type UpdateProfilePayload, type UserProfile } from '../services/usersApi';
+import { getAuthSession, saveAuthSession } from '../services/authApi';
 
 export default function Profile() {
   const { handle } = useParams();
@@ -96,20 +97,15 @@ export default function Profile() {
 
   const isOwnProfile = Boolean(currentUser?.handle && profile?.user.handle === currentUser.handle);
 
-  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>, type: 'avatarUrl' | 'headerUrl') => {
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>, type: 'avatarUrl' | 'headerUrl') => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
+    if (!file) return;
+    try {
+      const url = await uploadProfileImage(file);
+      setEditForm((previous) => ({ ...previous, [type]: url }));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not upload image.');
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setEditForm((previous) => ({
-        ...previous,
-        [type]: reader.result as string,
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const openEditModal = () => {
@@ -142,6 +138,20 @@ export default function Profile() {
         avatarUrl: response.user.avatarUrl,
         headerUrl: response.user.headerUrl,
       });
+
+      // Sync updated name/avatar vào localStorage để AuthContext + toàn bộ UI reload
+      const existingSession = getAuthSession();
+      if (existingSession) {
+        saveAuthSession({
+          ...existingSession,
+          user: {
+            ...existingSession.user,
+            name: response.user.name,
+            avatarUrl: response.user.avatarUrl,
+          },
+        });
+      }
+
       setIsEditModalOpen(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not save profile.');
@@ -421,7 +431,7 @@ export default function Profile() {
                     capture="user"
                     className="hidden"
                     ref={headerInputRef}
-                    onChange={(event) => handleImageUpload(event, 'headerUrl')}
+                    onChange={(event) => void handleImageUpload(event, 'headerUrl')}
                   />
                 </div>
               </div>
@@ -440,7 +450,7 @@ export default function Profile() {
                     capture="user"
                     className="hidden"
                     ref={avatarInputRef}
-                    onChange={(event) => handleImageUpload(event, 'avatarUrl')}
+                    onChange={(event) => void handleImageUpload(event, 'avatarUrl')}
                   />
                 </div>
               </div>
