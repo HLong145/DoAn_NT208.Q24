@@ -2,24 +2,45 @@ import { useState, useEffect } from 'react';
 import { Settings, MoreHorizontal } from 'lucide-react';
 import TrendingSidebar from '../components/TrendingSidebar';
 import { getSuggestions, type UserSummary } from '../services/usersApi';
+import { toggleFollow, getFollowingIds } from '../services/followsApi';
 
 export default function Follow() {
   const [activeTab, setActiveTab] = useState<'follow' | 'creators'>('follow');
   const [suggestions, setSuggestions] = useState<UserSummary[]>([]);
+  const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
+  const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let mounted = true;
     void (async () => {
       try {
-        const res = await getSuggestions();
+        const [res, ids] = await Promise.all([getSuggestions(), getFollowingIds()]);
         if (!mounted) return;
         setSuggestions(res);
+        setFollowingIds(new Set(ids));
       } catch (err) {
         setSuggestions([]);
       }
     })();
     return () => { mounted = false; };
   }, []);
+
+  const handleFollow = async (userId: number) => {
+    if (followingInProgress.has(userId)) return;
+    setFollowingInProgress((prev) => new Set(prev).add(userId));
+    try {
+      const result = await toggleFollow(userId);
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        result.isFollowing ? next.add(userId) : next.delete(userId);
+        return next;
+      });
+    } catch {
+      // ignore
+    } finally {
+      setFollowingInProgress((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+    }
+  };
 
   return (
     <>
@@ -73,8 +94,12 @@ export default function Follow() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="bg-text-base text-bg-base px-5 py-1.5 rounded-full text-[15px] font-bold hover:opacity-80 transition-opacity">
-                    Follow
+                  <button
+                    onClick={() => void handleFollow(user.id)}
+                    disabled={followingInProgress.has(user.id)}
+                    className={`px-5 py-1.5 rounded-full text-[15px] font-bold transition-colors disabled:opacity-50 ${followingIds.has(user.id) ? 'bg-transparent border border-border text-text-base hover:border-red-400 hover:text-red-400' : 'bg-text-base text-bg-base hover:opacity-80'}`}
+                  >
+                    {followingInProgress.has(user.id) ? '...' : followingIds.has(user.id) ? 'Following' : 'Follow'}
                   </button>
                   <button className="text-text-muted p-1 rounded-full hover:bg-border/50">
                     <MoreHorizontal className="w-4 h-4" />

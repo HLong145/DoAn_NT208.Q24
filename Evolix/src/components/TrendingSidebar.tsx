@@ -3,6 +3,7 @@ import { Search, TrendingUp, Users, MoreHorizontal, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getSuggestions, type UserSummary } from '../services/usersApi';
 import { getTrendingTopics } from '../services/tweetsApi';
+import { toggleFollow, getFollowingIds } from '../services/followsApi';
 
 interface TrendingSidebarProps {
   hideSearch?: boolean;
@@ -34,14 +35,17 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [autocompleteUsers, setAutocompleteUsers] = useState<SearchSuggestion[]>([]);
   const [whoToFollow, setWhoToFollow] = useState<Array<UserSummary & { avatarUrl?: string; displayName?: string }>>([]);
+  const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
+  const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let mounted = true;
     void (async () => {
       try {
-        const [topics, suggestions] = await Promise.all([getTrendingTopics(), getSuggestions()]);
+        const [topics, suggestions, ids] = await Promise.all([getTrendingTopics(), getSuggestions(), getFollowingIds()]);
         if (!mounted) return;
         setTrendingTopics(topics ?? []);
+        setFollowingIds(new Set(ids));
         setWhoToFollow(
           suggestions.map((u) => ({
             ...u,
@@ -55,6 +59,23 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
     })();
     return () => { mounted = false; };
   }, []);
+
+  const handleFollow = async (userId: number) => {
+    if (followingInProgress.has(userId)) return;
+    setFollowingInProgress((prev) => new Set(prev).add(userId));
+    try {
+      const result = await toggleFollow(userId);
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        result.isFollowing ? next.add(userId) : next.delete(userId);
+        return next;
+      });
+    } catch {
+      // ignore
+    } finally {
+      setFollowingInProgress((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -242,8 +263,12 @@ export default function TrendingSidebar({ hideSearch = false }: TrendingSidebarP
                     <span className="text-text-muted text-sm">@{u.username}</span>
                   </div>
                 </div>
-                <button className="bg-text-base text-bg-base px-4 py-1.5 rounded-full text-sm font-bold transition-colors opacity-95 hover:opacity-80">
-                  Follow
+                <button
+                  onClick={() => void handleFollow(u.id)}
+                  disabled={followingInProgress.has(u.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors disabled:opacity-50 ${followingIds.has(u.id) ? 'bg-transparent border border-border text-text-base hover:border-red-400 hover:text-red-400' : 'bg-text-base text-bg-base opacity-95 hover:opacity-80'}`}
+                >
+                  {followingInProgress.has(u.id) ? '...' : followingIds.has(u.id) ? 'Following' : 'Follow'}
                 </button>
               </div>
             ))
