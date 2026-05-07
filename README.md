@@ -49,8 +49,8 @@ Create a `.env` file (or set environment variables):
 ```env
 DB_HOST=localhost
 DB_PORT=3306
-DB_USER=yuwkaa
-DB_PASSWORD=yuwkaapassword
+DB_USER=<user_name>
+DB_PASSWORD=<user_password>
 DB_NAME=evolix_db
 REDIS_HOST=localhost
 REDIS_PORT=6379
