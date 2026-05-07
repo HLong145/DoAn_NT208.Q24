@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Edit, Image, Info, MessageCircle, Search, Send, Settings, Smile, Check, CheckCheck, Plus } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { createRealtimeSocket } from '../services/realtimeClient';
@@ -30,9 +30,12 @@ export default function MessagesEnhanced() {
   const [isStartingConversation, setIsStartingConversation] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [nicknameInput, setNicknameInput] = useState('');
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const activeThreadIdRef = useRef<string | null>(null);
   const { chatTheme, setChatTheme, nickname, setNickname } = useTheme();
   const { currentUser } = useAuth();
@@ -217,16 +220,31 @@ export default function MessagesEnhanced() {
     }
   };
 
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(file);
+    setMediaPreview(file ? URL.createObjectURL(file) : null);
+    e.target.value = '';
+  };
+
+  const clearMedia = () => {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(null);
+    setMediaPreview(null);
+  };
+
   const sendMessage = async () => {
-    if (!activeThreadId || messageText.trim().length === 0 || isSending) {
+    if (!activeThreadId || (messageText.trim().length === 0 && !mediaFile) || isSending) {
       return;
     }
 
     try {
       setIsSending(true);
       setErrorMessage('');
-      await sendConversationMessage(Number(activeThreadId), messageText.trim());
+      await sendConversationMessage(Number(activeThreadId), messageText.trim(), mediaFile ?? undefined);
       setMessageText('');
+      clearMedia();
 
       const [refreshedMessages, refreshedThreads] = await Promise.all([
         getConversationMessages(Number(activeThreadId)),
@@ -435,8 +453,12 @@ export default function MessagesEnhanced() {
                     )}
                     <div className="flex flex-col">
                       <div className={`text-xs text-text-muted mb-1 ${isSelfMessage(message) ? 'text-right' : ''}`}>{resolveMessageSenderName(message)}</div>
-                      <div className={`p-3 rounded-2xl ${isSelfMessage(message) ? 'bg-primary text-white rounded-br-sm' : 'bg-border/50 text-text-base rounded-bl-sm'}`}>
-                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                      <div className={`rounded-2xl overflow-hidden ${isSelfMessage(message) ? 'bg-primary text-white rounded-br-sm' : 'bg-border/50 text-text-base rounded-bl-sm'}`}>
+                        {message.mediaUrl && (
+                          <img src={message.mediaUrl} alt="media" className="max-w-[240px] block object-cover" />
+                        )}
+                        {message.content && <p className="whitespace-pre-wrap break-words px-3 py-2">{message.content}</p>}
+                        {!message.content && !message.mediaUrl && <p className="px-3 py-2 opacity-50 text-sm italic">empty</p>}
                       </div>
                       <div className={`flex items-center gap-1 mt-1 ${isSelfMessage(message) ? 'justify-end' : 'justify-start'}`}>
                         <span className="text-xs text-text-muted">{message.timestamp}</span>
@@ -466,8 +488,29 @@ export default function MessagesEnhanced() {
                   </div>
                 </div>
               )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleMediaSelect}
+              />
+              {mediaPreview && (
+                <div className="relative mb-2 inline-block">
+                  <img src={mediaPreview} alt="preview" className="max-h-32 rounded-xl object-cover" />
+                  <button
+                    onClick={clearMedia}
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                  </button>
+                </div>
+              )}
               <div className="bg-border/50 rounded-2xl flex items-center p-2">
-                <button className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors">
+                <button
+                  className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <Image className="w-5 h-5" />
                 </button>
                 <input
@@ -489,8 +532,8 @@ export default function MessagesEnhanced() {
                   <Smile className="w-5 h-5" />
                 </button>
                 <button
-                  className={`p-2 rounded-full transition-colors ml-1 ${messageText.trim() ? 'text-primary hover:bg-primary/10' : 'text-primary/50 cursor-not-allowed'}`}
-                  disabled={!messageText.trim() || isSending}
+                  className={`p-2 rounded-full transition-colors ml-1 ${(messageText.trim() || mediaFile) ? 'text-primary hover:bg-primary/10' : 'text-primary/50 cursor-not-allowed'}`}
+                  disabled={(!messageText.trim() && !mediaFile) || isSending}
                   onClick={() => void sendMessage()}
                 >
                   <Send className="w-5 h-5" />

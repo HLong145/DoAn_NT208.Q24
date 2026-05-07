@@ -18,6 +18,9 @@ export class DirectMessage {
   @Column('text')
   content: string;
 
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  mediaUrl: string | null;
+
   @Column({ default: false })
   isRead: boolean;
 

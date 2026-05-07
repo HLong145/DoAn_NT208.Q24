@@ -30,6 +30,7 @@ export type ConversationMessage = {
     avatar: string;
   };
   content: string;
+  mediaUrl?: string | null;
   timestamp: string;
   isMine: boolean;
   isRead: boolean;
@@ -80,9 +81,22 @@ export function getConversationMessages(threadId: number) {
   return apiRequest<ConversationMessage[]>(`/messages/threads/${threadId}/messages`);
 }
 
-export function sendConversationMessage(threadId: number, content: string) {
-  return apiRequest<{ conversationId: string; message: ConversationMessage }>(`/messages/threads/${threadId}/messages`, {
+export async function sendConversationMessage(threadId: number, content: string, mediaFile?: File) {
+  const session = getAuthSession();
+  if (!session?.token) throw new Error('Please sign in to continue.');
+
+  const form = new FormData();
+  form.append('content', content);
+  if (mediaFile) form.append('media', mediaFile);
+
+  const response = await fetch(buildApiUrl(`/messages/threads/${threadId}/messages`), {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    headers: { Authorization: `Bearer ${session.token}` },
+    body: form,
   });
+
+  type R = { conversationId: string; message: ConversationMessage } & { error?: string; message?: string };
+  const payload = (await response.json().catch(() => ({}))) as R;
+  if (!response.ok) throw new Error((payload as { error?: string; message?: string }).message ?? (payload as { error?: string }).error ?? 'Request failed.');
+  return payload;
 }

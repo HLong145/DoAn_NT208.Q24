@@ -41,6 +41,7 @@ export type ConversationMessageItem = {
   senderId: number;
   sender: MessageSender;
   content: string;
+  mediaUrl?: string | null;
   timestamp: string;
   isMine: boolean;
   isRead: boolean;
@@ -184,14 +185,15 @@ export class MessagesService {
       senderId: message.senderId,
       sender: this.toMessageSender(senderMap.get(message.senderId), message.senderId),
       content: message.content,
+      mediaUrl: message.mediaUrl ?? null,
       timestamp: this.formatRelativeTime(message.createdAt),
       isMine: message.senderId === userId,
       isRead: message.isRead,
     }));
   }
 
-  async sendMessage(userId: number, conversationId: number, content: string) {
-    if (!content.trim()) {
+  async sendMessage(userId: number, conversationId: number, content: string, mediaUrl?: string) {
+    if (!content.trim() && !mediaUrl) {
       throw new BadRequestException('Message cannot be empty');
     }
 
@@ -201,6 +203,7 @@ export class MessagesService {
       conversationId,
       senderId: userId,
       content: content.trim(),
+      mediaUrl: mediaUrl ?? null,
       isRead: false,
       readAt: null,
     }));
@@ -219,6 +222,7 @@ export class MessagesService {
         senderId: userId,
         sender: this.toMessageSender(senderUser, userId),
         content: message.content,
+        mediaUrl: message.mediaUrl ?? null,
         timestamp: this.formatRelativeTime(message.createdAt),
         isMine: true,
       },
