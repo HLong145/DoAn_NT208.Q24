@@ -399,7 +399,20 @@ export default function Profile() {
             <div className="sticky top-0 bg-bg-panel/90 backdrop-blur-md z-10 p-4 flex justify-between items-center border-b border-border">
               <div className="flex items-center gap-6">
                 <button
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setErrorMessage('');
+                    if (profile) {
+                      setEditForm({
+                        name: profile.user.name,
+                        bio: profile.user.bio,
+                        location: profile.user.location,
+                        website: profile.user.website,
+                        avatarUrl: profile.user.avatarUrl,
+                        headerUrl: profile.user.headerUrl,
+                      });
+                    }
+                  }}
                   className="p-2 hover:bg-border/50 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -414,6 +427,11 @@ export default function Profile() {
                 {isSavingProfile ? 'Saving...' : 'Save'}
               </button>
             </div>
+            {errorMessage && (
+              <div className="mx-4 mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                {errorMessage}
+              </div>
+            )}
 
             <div className="relative">
               <div className="h-48 bg-border w-full relative group">
@@ -428,7 +446,6 @@ export default function Profile() {
                   <input
                     type="file"
                     accept="image/*"
-                    capture="user"
                     className="hidden"
                     ref={headerInputRef}
                     onChange={(event) => void handleImageUpload(event, 'headerUrl')}
@@ -447,7 +464,6 @@ export default function Profile() {
                   <input
                     type="file"
                     accept="image/*"
-                    capture="user"
                     className="hidden"
                     ref={avatarInputRef}
                     onChange={(event) => void handleImageUpload(event, 'avatarUrl')}
