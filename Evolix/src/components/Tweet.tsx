@@ -179,9 +179,14 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
           
           {media && media.length > 0 && (
             <div className={`mt-3 grid gap-2 ${media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} rounded-2xl overflow-hidden border border-border`}>
-              {media.map((url, index) => (
-                <img key={index} src={url} alt="Tweet media" className="w-full h-full object-cover max-h-[300px]" />
-              ))}
+              {media.map((url, index) => {
+                const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(url);
+                return isVideo ? (
+                  <video key={index} src={url} controls className="w-full max-h-[300px] object-cover bg-black" />
+                ) : (
+                  <img key={index} src={url} alt="Tweet media" className="w-full h-full object-cover max-h-[300px]" />
+                );
+              })}
             </div>
           )}
         </div>

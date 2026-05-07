@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
-import { ArrowLeft, MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal, Image as ImageIcon, Smile, ListTodo, Calendar, MapPin } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Repeat2, Heart, Share, Bookmark, MoreHorizontal, Image as ImageIcon, Smile, ListTodo, Calendar, MapPin } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
 import { toggleBookmark } from '../services/bookmarksApi';
@@ -177,10 +177,15 @@ export default function TweetDetail() {
               </p>
 
               {tweet.media && tweet.media.length > 0 && (
-                <div className="mb-4 rounded-2xl overflow-hidden border border-border">
-                  {tweet.media.map((url, index) => (
-                    <img key={index} src={url} alt="Tweet media" className="w-full h-auto" />
-                  ))}
+                <div className={`mb-4 grid gap-2 ${tweet.media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} rounded-2xl overflow-hidden border border-border`}>
+                  {tweet.media.map((url, index) => {
+                    const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(url);
+                    return isVideo ? (
+                      <video key={index} src={url} controls className="w-full max-h-[400px] object-contain bg-black" />
+                    ) : (
+                      <img key={index} src={url} alt="Tweet media" className="w-full h-auto" />
+                    );
+                  })}
                 </div>
               )}
 

@@ -287,7 +287,11 @@ export default function Explore() {
               <div className="aspect-video bg-border rounded-xl mb-4 overflow-hidden relative">
                   {leadStory ? (
                     <>
-                      <img src={leadStory.image} alt="Lead story" className="w-full h-full object-cover" />
+                      {/\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(leadStory.image ?? '') ? (
+                        <video src={leadStory.image} autoPlay muted loop playsInline className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={leadStory.image} alt="Lead story" className="w-full h-full object-cover" />
+                      )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <h3 className="text-white text-xl font-bold">{leadStory.title}</h3>
                         <p className="text-white/80 text-sm">{leadStory.byline}</p>
