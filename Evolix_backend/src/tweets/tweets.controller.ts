@@ -1,7 +1,18 @@
-import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { TweetsService } from './tweets.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { CreateTweetDto } from './dto/create-tweet.dto';
+
+const uploadStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads'),
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `${unique}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('tweets')
 export class TweetsController {
@@ -15,9 +26,13 @@ export class TweetsController {
    */
   @UseGuards(AuthGuard)
   @Post()
-  createTweet(@Request() req, @Body() body: CreateTweetDto) {
+  @UseInterceptors(FilesInterceptor('media', 4, { storage: uploadStorage }))
+  createTweet(@Request() req, @Body() body: CreateTweetDto, @UploadedFiles() files?: Express.Multer.File[]) {
     const userId = req.user.sub;
-    return this.tweetsService.createTweet(userId, body.content);
+    const mediaUrls = files?.length
+      ? files.map((f) => `/uploads/${f.filename}`).join(',')
+      : undefined;
+    return this.tweetsService.createTweet(userId, body.content, mediaUrls);
   }
 
   /**

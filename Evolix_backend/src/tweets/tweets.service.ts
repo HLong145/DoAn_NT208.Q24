@@ -16,6 +16,8 @@ type TimelineAuthor = {
   username: string;
   email: string;
   createdAt: Date;
+  displayName?: string | null;
+  avatarUrl?: string | null;
 };
 
 type TimelineTweet = {
@@ -87,15 +89,16 @@ export class TweetsService {
    * @param content - Nội dung của bài viết.
    * @returns Thông báo thành công và dữ liệu bài viết vừa tạo.
    */
-  async createTweet(userId: number, content: string) {
+  async createTweet(userId: number, content: string, mediaUrls?: string) {
     if (!content) {
       throw new BadRequestException('Content cannot be empty');
     }
 
     const newTweet = this.tweetRepository.create({
-      userId: userId, 
+      userId: userId,
       content: content,
-      isRetweet: false, // Đảm bảo cờ này là false cho các bài viết gốc
+      mediaUrls: mediaUrls,
+      isRetweet: false,
     });
 
     await this.tweetRepository.save(newTweet);
@@ -361,9 +364,9 @@ export class TweetsService {
         id: tweet.id.toString(),
         author: {
           id: tweet.userId,
-          name: author?.username ?? `User ${tweet.userId}`,
+          name: author?.displayName ?? author?.username ?? `User ${tweet.userId}`,
           handle: author?.username ?? `user${tweet.userId}`,
-          avatar: `https://i.pravatar.cc/150?u=${avatarSeed}`,
+          avatar: author?.avatarUrl ?? `https://i.pravatar.cc/150?u=${avatarSeed}`,
         },
         content: tweet.content,
         timestamp: this.formatRelativeTime(tweet.createdAt),
@@ -386,9 +389,9 @@ export class TweetsService {
             id: comment.id.toString(),
             author: {
               id: comment.userId,
-              name: commentAuthor?.username ?? `User ${comment.userId}`,
+              name: commentAuthor?.displayName ?? commentAuthor?.username ?? `User ${comment.userId}`,
               handle: commentAuthor?.username ?? `user${comment.userId}`,
-              avatar: `https://i.pravatar.cc/150?u=${commentAvatarSeed}`,
+              avatar: commentAuthor?.avatarUrl ?? `https://i.pravatar.cc/150?u=${commentAvatarSeed}`,
             },
             content: comment.content,
             timestamp: this.formatRelativeTime(comment.createdAt),
@@ -459,7 +462,7 @@ export class TweetsService {
 
     return tweets.map<TimelineTweet>((tweet) => {
       const author = authorMap.get(tweet.userId);
-      const authorName = author?.username ?? `User ${tweet.userId}`;
+      const authorName = author?.displayName ?? author?.username ?? `User ${tweet.userId}`;
       const avatarSeed = encodeURIComponent(String(author?.username ?? tweet.userId));
 
       return {
@@ -468,7 +471,7 @@ export class TweetsService {
           id: tweet.userId,
           name: authorName,
           handle: author?.username ?? `user${tweet.userId}`,
-          avatar: `https://i.pravatar.cc/150?u=${avatarSeed}`,
+          avatar: author?.avatarUrl ?? `https://i.pravatar.cc/150?u=${avatarSeed}`,
         },
         content: tweet.content,
         timestamp: this.formatRelativeTime(tweet.createdAt),

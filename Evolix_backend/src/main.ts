@@ -1,10 +1,17 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const uploadsDir = join(process.cwd(), 'uploads');
+  if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
   app.setGlobalPrefix('api');
   const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:3000')
     .split(',')

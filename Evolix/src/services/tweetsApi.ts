@@ -106,11 +106,24 @@ export function getTweetsByUser(userId: number, viewerUserId?: string) {
   return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${queryParams}`);
 }
 
-export function createTweet(content: string) {
-  return apiRequest<{ message: string; tweet: unknown }>('/tweets', {
+export async function createTweet(content: string, mediaFiles?: File[]) {
+  const session = getAuthSession();
+  if (!session?.token) throw new Error('Please sign in to continue.');
+
+  const form = new FormData();
+  form.append('content', content);
+  mediaFiles?.forEach((f) => form.append('media', f));
+
+  const response = await fetch(buildApiUrl('/tweets'), {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    headers: { Authorization: `Bearer ${session.token}` },
+    body: form,
   });
+
+  type R = { message: string; tweet: unknown } & { error?: string; message?: string };
+  const payload = (await response.json().catch(() => ({}))) as R;
+  if (!response.ok) throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+  return payload;
 }
 
 export function retweetTweet(tweetId: number) {
