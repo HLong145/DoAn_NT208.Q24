@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Calendar, MapPin, Link as LinkIcon, MoreHorizontal, X, Camera, ArrowLeft } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Tweet from '../components/Tweet';
 import TrendingSidebar from '../components/TrendingSidebar';
 import { useAuth } from '../contexts/AuthContext';
-import { toggleFollow } from '../services/followsApi';
+import { toggleFollow, getFollowingIds } from '../services/followsApi';
 import { getTweetsByUser, type TimelineTweet } from '../services/tweetsApi';
-import { getUserProfile, updateMyProfile, uploadProfileImage, type UpdateProfilePayload, type UserProfile } from '../services/usersApi';
+import { getUserProfile, updateMyProfile, uploadProfileImage, getFollowers, getFollowing, type UpdateProfilePayload, type UserProfile, type UserSummary } from '../services/usersApi';
 import { getAuthSession, saveAuthSession } from '../services/authApi';
 
 export default function Profile() {
+  const [followingSubTab, setFollowingSubTab] = useState<'verified' | 'followers' | 'following'>('followers');
+
   const { handle } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileTweets, setProfileTweets] = useState<TimelineTweet[]>([]);
-  const [activeTab, setActiveTab] = useState<'tweets' | 'replies' | 'media' | 'likes'>('tweets');
+  const [activeTab, setActiveTab] = useState<'tweets' | 'replies' | 'following' | 'media' | 'likes'>('tweets');
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingTweets, setIsLoadingTweets] = useState(false);
   const [isUpdatingFollow, setIsUpdatingFollow] = useState(false);
@@ -27,6 +30,37 @@ export default function Profile() {
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
+  const [followersList, setFollowersList] = useState<UserSummary[]>([]);
+  const [followingList, setFollowingList] = useState<UserSummary[]>([]);
+  const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
+  const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
+
+  const handleShareProfile = async () => {
+    if (!profile?.user.handle) {
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/profile/${profile.user.handle}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${profile.user.name}'s profile`,
+          text: `Check out ${profile.user.name}'s profile on Evolix`,
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        window.alert('Profile link copied to clipboard.');
+      } else {
+        window.prompt('Copy profile link', shareUrl);
+      }
+      setIsMoreMenuOpen(false);
+    } catch (error) {
+      console.error('Could not share profile:', error);
+      window.alert('Could not share profile right now.');
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,6 +106,53 @@ export default function Profile() {
 
     void loadProfile();
   }, [handle, currentUser?.handle]);
+
+  useEffect(() => {
+    // set active tab from URL if present
+    if (location.pathname.endsWith('/following')) {
+      setActiveTab('following');
+      setFollowingSubTab('following');
+    } else if (location.pathname.endsWith('/followers')) {
+      setActiveTab('following');
+      setFollowingSubTab('followers');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    // Load which users current user is following so we can render follow buttons
+    let mounted = true;
+    void (async () => {
+      try {
+        const ids = await getFollowingIds();
+        if (!mounted) return;
+        setFollowingIds(new Set(ids));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'following' || !profile?.user.handle) return;
+    let mounted = true;
+
+    const loadLists = async () => {
+      try {
+        const [followersRes, followingRes] = await Promise.all([getFollowers(profile.user.handle), getFollowing(profile.user.handle)]);
+        if (!mounted) return;
+        setFollowersList(followersRes);
+        setFollowingList(followingRes);
+      } catch (err) {
+        console.error('Could not load follower/following lists', err);
+        setFollowersList([]);
+        setFollowingList([]);
+      }
+    };
+
+    void loadLists();
+    return () => { mounted = false; };
+  }, [activeTab, profile?.user.handle]);
 
   useEffect(() => {
     const loadProfileTweets = async () => {
@@ -184,6 +265,26 @@ export default function Profile() {
     }
   };
 
+  const handleListFollow = async (userId: number) => {
+    if (followingInProgress.has(userId)) return;
+    setFollowingInProgress((prev) => new Set(prev).add(userId));
+    try {
+      const result = await toggleFollow(userId);
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        result.isFollowing ? next.add(userId) : next.delete(userId);
+        return next;
+      });
+      // update lists locally
+      setFollowersList((prev) => prev.map((u) => u.id === userId ? { ...u } : u));
+      setFollowingList((prev) => prev.map((u) => u.id === userId ? { ...u } : u));
+    } catch {
+      // ignore
+    } finally {
+      setFollowingInProgress((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+    }
+  };
+
   const profileUser = profile?.user;
   const avatarUrl = editForm.avatarUrl || profileUser?.avatarUrl || undefined;
   const headerUrl = editForm.headerUrl || profileUser?.headerUrl || undefined;
@@ -241,7 +342,7 @@ export default function Profile() {
 
                   {isMoreMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-48 bg-bg-panel rounded-xl shadow-lg border border-border overflow-hidden z-50 py-2">
-                      <button className="w-full text-left px-4 py-3 hover:bg-border/30 transition-colors font-bold">
+                      <button onClick={() => void handleShareProfile()} className="w-full text-left px-4 py-3 hover:bg-border/30 transition-colors font-bold">
                         Share profile
                       </button>
                       {!isOwnProfile && (
@@ -316,12 +417,12 @@ export default function Profile() {
               </div>
 
               <div className="flex gap-4 text-sm">
-                <span>
+                <button onClick={() => navigate('/following')} className="text-left">
                   <span className="font-bold text-text-base">{profileUser.followingCount}</span> <span className="text-text-muted">Following</span>
-                </span>
-                <span>
+                </button>
+                <button onClick={() => navigate('/followers')} className="text-left">
                   <span className="font-bold text-text-base">{profileUser.followersCount}</span> <span className="text-text-muted">Followers</span>
-                </span>
+                </button>
               </div>
             </div>
 
@@ -353,9 +454,52 @@ export default function Profile() {
               >
                 Likes
                 {activeTab === 'likes' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-t-full"></div>}
+              <button
+                onClick={() => setActiveTab('following')}
+                className={`flex-1 py-4 hover:bg-border/50 transition-colors relative ${activeTab === 'following' ? 'text-text-base' : 'text-text-muted'}`}
+              >
+                Following
+                {activeTab === 'following' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-t-full"></div>}
+              </button>
               </button>
             </div>
 
+              {activeTab === 'following' ? (
+                <div>
+                  <div className="flex gap-3 text-sm font-bold mb-4">
+                    <button onClick={() => setFollowingSubTab('verified')} className={`px-3 py-2 rounded-full ${followingSubTab === 'verified' ? 'bg-primary text-white' : 'bg-border/50 text-text-muted'}`}>Verified followers</button>
+                    <button onClick={() => setFollowingSubTab('followers')} className={`px-3 py-2 rounded-full ${followingSubTab === 'followers' ? 'bg-primary text-white' : 'bg-border/50 text-text-muted'}`}>Followers</button>
+                    <button onClick={() => setFollowingSubTab('following')} className={`px-3 py-2 rounded-full ${followingSubTab === 'following' ? 'bg-primary text-white' : 'bg-border/50 text-text-muted'}`}>Following</button>
+                  </div>
+
+                  <div className="divide-y divide-border">
+                    {(followingSubTab === 'followers' ? followersList : followingSubTab === 'following' ? followingList : followersList.filter((u: any) => u.isVerified)).map((user) => (
+                      <div key={user.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-border/30 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.displayName ?? user.username} className="w-12 h-12 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-border/50 flex items-center justify-center font-bold text-text-base">{user.username?.charAt(0)?.toUpperCase()}</div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-extrabold text-[15px] truncate">{user.displayName ?? user.username}</div>
+                            <div className="text-sm text-text-muted truncate">@{user.username}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <button
+                            onClick={() => void handleListFollow(user.id)}
+                            disabled={followingInProgress.has(user.id)}
+                            className={`px-4 py-1.5 rounded-full text-[15px] font-bold transition-colors disabled:opacity-50 ${followingIds.has(user.id) ? 'bg-transparent border border-border text-text-base hover:border-red-400 hover:text-red-400' : 'bg-text-base text-bg-base hover:opacity-80'}`}
+                          >
+                            {followingInProgress.has(user.id) ? '...' : (followingIds.has(user.id) ? 'Following' : 'Follow')}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             <div className="divide-y divide-border">
               {activeTab === 'tweets' ? (
                 isLoadingTweets ? (

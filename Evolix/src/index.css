@@ -82,8 +82,27 @@
 
 /* Buttons contrast in dark chat themes */
 .chat-dark .bg-border\/50 { background-color: rgba(255,255,255,0.06) !important; }
-.chat-dark .text-text-base { color: var(--color-text-base) !important; }
+.chat-dark .text-text-base { color: #e7e9ea !important; }
 .chat-dark .bg-primary { background-color: color-mix(in srgb, var(--color-primary) 90%, #111 10%) !important; }
+.chat-dark {
+  background-color: #0f1720 !important;
+  color: #e7e9ea !important;
+}
+.chat-dark .bg-bg-base { background-color: #0f1720 !important; }
+.chat-dark .bg-bg-panel { background-color: #17212b !important; }
+.chat-dark .border-border { border-color: #2a3a47 !important; }
+.chat-dark .text-text-muted { color: #8b98a5 !important; }
+.chat-dark input,
+.chat-dark textarea,
+.chat-dark select {
+  background-color: #22303c !important;
+  border-color: #2a3a47 !important;
+  color: #e7e9ea !important;
+}
+.chat-dark input::placeholder,
+.chat-dark textarea::placeholder {
+  color: #8b98a5 !important;
+}
 
 /* Scope sidebar/header font-size so display font-size doesn't resize frames */
 .app-sidebar {

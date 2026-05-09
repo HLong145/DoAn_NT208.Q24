@@ -36,6 +36,12 @@ export type ConversationMessage = {
   isRead: boolean;
 };
 
+export type ConversationMessageSearchResult = {
+  conversationId: string;
+  thread: ConversationThread;
+  message: ConversationMessage;
+};
+
 type ApiErrorResponse = {
   error?: string;
   message?: string;
@@ -79,6 +85,15 @@ export function createConversation(participantId: number) {
 
 export function getConversationMessages(threadId: number) {
   return apiRequest<ConversationMessage[]>(`/messages/threads/${threadId}/messages`);
+}
+
+export function searchConversationMessages(query: string, scope: 'all' | 'thread' = 'all', threadId?: number) {
+  const params = new URLSearchParams({ q: query, scope });
+  if (typeof threadId === 'number' && Number.isFinite(threadId)) {
+    params.set('threadId', String(threadId));
+  }
+
+  return apiRequest<ConversationMessageSearchResult[]>(`/messages/search?${params.toString()}`);
 }
 
 export async function sendConversationMessage(threadId: number, content: string, mediaFile?: File) {

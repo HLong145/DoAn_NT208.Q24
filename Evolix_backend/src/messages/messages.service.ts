@@ -47,6 +47,12 @@ export type ConversationMessageItem = {
   isRead: boolean;
 };
 
+export type MessageSearchResult = {
+  conversationId: string;
+  thread: ConversationThread;
+  message: ConversationMessageItem;
+};
+
 @Injectable()
 export class MessagesService {
   constructor(
@@ -190,6 +196,86 @@ export class MessagesService {
       isMine: message.senderId === userId,
       isRead: message.isRead,
     }));
+  }
+
+  async searchMessages(
+    userId: number,
+    query: string,
+    scope: 'all' | 'thread' = 'all',
+    conversationId?: number,
+  ): Promise<MessageSearchResult[]> {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    let conversationIds: number[] = [];
+    if (scope === 'thread') {
+      if (!Number.isFinite(conversationId)) {
+        return [];
+      }
+
+      await this.assertParticipant(userId, conversationId as number);
+      conversationIds = [conversationId as number];
+    } else {
+      const participantRows = await this.participantRepository.find({ where: { userId } });
+      conversationIds = [...new Set(participantRows.map((row) => row.conversationId))];
+    }
+
+    if (conversationIds.length === 0) {
+      return [];
+    }
+
+    const threads = await this.getThreads(userId);
+    const threadMap = new Map<number, ConversationThread>(threads.map((thread) => [Number(thread.id), thread]));
+    const senderIds = [...new Set(threads.map((thread) => thread.participant.id))];
+
+    const queryBuilder = this.messageRepository
+      .createQueryBuilder('message')
+      .where('message.conversationId IN (:...conversationIds)', { conversationIds })
+      .andWhere('LOWER(message.content) LIKE :query', { query: `%${trimmedQuery.toLowerCase()}%` })
+      .orderBy('message.createdAt', 'DESC')
+      .take(50);
+
+    const messages = await queryBuilder.getMany();
+    if (messages.length === 0) {
+      return [];
+    }
+
+    const userIds = [...new Set([...messages.map((message) => message.senderId), ...senderIds, userId])];
+    const users = await this.usersService.findManyByIds(userIds);
+    const userMap = new Map<number, (typeof users)[number]>(users.map((user) => [user.id, user]));
+
+    return messages.flatMap<MessageSearchResult>((message) => {
+      const thread = threadMap.get(message.conversationId);
+      if (!thread) {
+        return [];
+      }
+
+      const sender = userMap.get(message.senderId);
+      const senderDisplayName = sender?.displayName ?? sender?.username ?? `user-${message.senderId}`;
+      const senderAvatar = sender?.avatarUrl ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(sender?.username ?? `user-${message.senderId}`)}`;
+
+      return [{
+        conversationId: message.conversationId.toString(),
+        thread,
+        message: {
+          id: message.id.toString(),
+          senderId: message.senderId,
+          sender: {
+            id: sender?.id ?? message.senderId,
+            name: senderDisplayName,
+            handle: sender?.username ?? `user-${message.senderId}`,
+            avatar: senderAvatar,
+          },
+          content: message.content,
+          mediaUrl: message.mediaUrl ?? null,
+          timestamp: this.formatRelativeTime(message.createdAt),
+          isMine: message.senderId === userId,
+          isRead: message.isRead,
+        },
+      }];
+    });
   }
 
   async sendMessage(userId: number, conversationId: number, content: string, mediaUrl?: string) {

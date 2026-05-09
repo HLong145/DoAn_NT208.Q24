@@ -33,6 +33,18 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard)
+  @Get(':handle/followers')
+  getFollowersByHandle(@Param('handle') handle: string) {
+    return this.usersService.getFollowersByHandle(handle);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get(':handle/following')
+  getFollowingByHandle(@Param('handle') handle: string) {
+    return this.usersService.getFollowingByHandle(handle);
+  }
+
+  @UseGuards(AuthGuard)
   @Get('suggestions')
   suggestions(@Request() req) {
     return this.usersService.getSuggestions(req.user.sub);

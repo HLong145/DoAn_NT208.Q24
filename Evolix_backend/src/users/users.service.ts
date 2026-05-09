@@ -131,6 +131,56 @@ export class UsersService {
     };
   }
 
+  async getFollowersByHandle(handle: string) {
+    const user = await this.userRepository.findOne({ where: { username: handle } });
+    if (!user) {
+      throw new NotFoundException('User can not be found');
+    }
+
+    const follows = await this.followRepository.find({ where: { followingId: user.id } });
+    const followerIds = follows.map(f => f.followerId);
+
+    if (followerIds.length === 0) return [];
+
+    const users = await this.userRepository.find({
+      where: { id: In(followerIds) },
+      select: ['id', 'username', 'email', 'displayName', 'avatarUrl'],
+    });
+
+    return users.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      displayName: u.displayName ?? u.username,
+      avatarUrl: u.avatarUrl ?? null,
+    }));
+  }
+
+  async getFollowingByHandle(handle: string) {
+    const user = await this.userRepository.findOne({ where: { username: handle } });
+    if (!user) {
+      throw new NotFoundException('User can not be found');
+    }
+
+    const follows = await this.followRepository.find({ where: { followerId: user.id } });
+    const followingIds = follows.map(f => f.followingId);
+
+    if (followingIds.length === 0) return [];
+
+    const users = await this.userRepository.find({
+      where: { id: In(followingIds) },
+      select: ['id', 'username', 'email', 'displayName', 'avatarUrl'],
+    });
+
+    return users.map(u => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      displayName: u.displayName ?? u.username,
+      avatarUrl: u.avatarUrl ?? null,
+    }));
+  }
+
   async updateMyProfile(userId: number, updates: {
     name?: string;
     bio?: string;

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Request, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Request, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -33,6 +33,17 @@ export class MessagesController {
   @Get('threads/:threadId/messages')
   getMessages(@Request() req, @Param('threadId', ParseIntPipe) threadId: number) {
     return this.messagesService.getMessages(req.user.sub, threadId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('search')
+  searchMessages(
+    @Request() req,
+    @Query('q') query: string,
+    @Query('scope') scope?: 'all' | 'thread',
+    @Query('threadId') threadId?: string,
+  ) {
+    return this.messagesService.searchMessages(req.user.sub, query ?? '', scope ?? 'all', threadId ? Number(threadId) : undefined);
   }
 
   @UseGuards(AuthGuard)

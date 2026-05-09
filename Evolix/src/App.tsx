@@ -14,6 +14,7 @@ import Follow from './pages/Follow';
 import Messages from './pages/Messages.tsx';
 import Bookmarks from './pages/Bookmarks';
 import Profile from './pages/Profile';
+import Connections from './pages/Connections';
 import TweetDetail from './pages/TweetDetail';
 import Settings from './pages/Settings';
 import ChangePassword from './pages/ChangePassword';
@@ -79,6 +80,12 @@ export default function App() {
                 <Route path="bookmarks" element={<Bookmarks />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="profile/:handle" element={<Profile />} />
+                <Route path="following" element={<Connections />} />
+                <Route path="following/:handle" element={<Connections />} />
+                <Route path="verified_followers" element={<Connections />} />
+                <Route path="verified_followers/:handle" element={<Connections />} />
+                <Route path="followers" element={<Connections />} />
+                <Route path="followers/:handle" element={<Connections />} />
                 <Route path="tweet/:id" element={<TweetDetail />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="settings/change-password" element={<ChangePassword />} />

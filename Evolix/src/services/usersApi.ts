@@ -7,6 +7,7 @@ export type UserSummary = {
   email: string;
   avatarUrl?: string;
   displayName?: string;
+  isVerified?: boolean;
 };
 
 export type UserProfile = {
@@ -77,6 +78,14 @@ export function getSuggestions() {
 
 export function getUserProfile(handle: string) {
   return apiRequest<UserProfile>(`/users/profile/${encodeURIComponent(handle)}`);
+}
+
+export function getFollowers(handle: string) {
+  return apiRequest<UserSummary[]>(`/users/${encodeURIComponent(handle)}/followers`);
+}
+
+export function getFollowing(handle: string) {
+  return apiRequest<UserSummary[]>(`/users/${encodeURIComponent(handle)}/following`);
 }
 
 export function updateMyProfile(payload: UpdateProfilePayload) {

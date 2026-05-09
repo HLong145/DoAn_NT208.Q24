@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 export default function Settings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [isProtectPostsEnabled, setIsProtectPostsEnabled] = useState(() => localStorage.getItem('settings_protectPosts') === 'true');
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get('tab');
     return tab === 'privacy' || tab === 'notifications' ? tab : 'account';
@@ -16,6 +17,10 @@ export default function Settings() {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_protectPosts', String(isProtectPostsEnabled));
+  }, [isProtectPostsEnabled]);
 
   return (
     <main className="flex-1 min-w-0 border-r border-border pb-20 sm:pb-0 relative flex">
@@ -110,15 +115,19 @@ export default function Settings() {
               <p className="text-text-muted text-sm">Manage what information you see and share on Evolix.</p>
               
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 hover:bg-border/50 rounded-xl transition-colors cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => setIsProtectPostsEnabled((current) => !current)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-border/50 rounded-xl transition-colors text-left"
+                >
                   <div>
                     <h3 className="font-bold mb-1">Protect your posts</h3>
                     <p className="text-sm text-text-muted">Only current followers and people you approve in the future will be able to see your posts.</p>
                   </div>
-                  <div className="w-10 h-6 bg-border rounded-full relative">
-                    <div className="w-5 h-5 bg-bg-panel rounded-full absolute top-0.5 left-0.5 shadow-sm"></div>
+                  <div className={`w-10 h-6 rounded-full relative transition-colors ${isProtectPostsEnabled ? 'bg-primary' : 'bg-border'}`}>
+                    <div className={`w-5 h-5 bg-bg-panel rounded-full absolute top-0.5 shadow-sm transition-transform ${isProtectPostsEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
                   </div>
-                </div>
+                </button>
                 <div onClick={() => navigate('/settings/direct-messages')} className="flex items-center justify-between p-4 hover:bg-border/50 rounded-xl transition-colors cursor-pointer">
                   <div>
                     <h3 className="font-bold mb-1">Direct Messages</h3>
