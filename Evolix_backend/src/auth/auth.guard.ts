@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { Request } from 'express';
 import { UsersService } from '../users/users.service';
 
@@ -9,37 +9,39 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    //Get the token from request
     const token = this.extractTokenFromHeader(request);
-    
+
     if (!token) {
       throw new UnauthorizedException('You must login to see this information');
     }
-    
+
+    let payload: any;
     try {
-      //Take the secret key from auth modules to check if the token is right
-      const payload = await this.jwtService.verifyAsync(token);
-
-      // If token is valid, ensure the user still exists and is active
-      const userId = Number(payload?.sub ?? NaN);
-      if (!Number.isFinite(userId)) {
-        throw new UnauthorizedException('Invalid token payload');
+      payload = await this.jwtService.verifyAsync(token);
+    } catch (err) {
+      if (err instanceof TokenExpiredError) {
+        throw new UnauthorizedException('Token has expired, please login again');
       }
-
-      const user = await this.usersService.findEntityById(userId);
-      if (!user || user.isActive === false) {
-        throw new UnauthorizedException('Account is deactivated or not found');
-      }
-
-      // attach payload and user entity
-      request['user'] = {
-        ...payload,
-        sub: userId,
-      };
-      request['userEntity'] = user;
-    } catch {
       throw new UnauthorizedException('Fake token nihahaha');
     }
+
+    const userId = Number(payload?.sub ?? NaN);
+    if (!Number.isFinite(userId)) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    const user = await this.usersService.findEntityById(userId);
+    if (!user || user.isActive === false) {
+      throw new UnauthorizedException('Account is deactivated or not found');
+    }
+
+    // attach payload and user entity
+    request['user'] = {
+      ...payload,
+      sub: userId,
+    };
+    request['userEntity'] = user;
+
     return true;
   }
 
