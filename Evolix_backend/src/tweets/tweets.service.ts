@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Like, Repository } from 'typeorm';
 import { Tweet } from './entities/tweet.entity';
 import { Comment } from '../comments/entities/comment.entity';
+import { Like as LikeEntity } from '../likes/entities/like.entity';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { FollowsService } from '../follows/follows.service';
@@ -40,6 +41,7 @@ type TimelineTweet = {
   isReposted: boolean;
   isBookmarked: boolean;
   media?: string[];
+  retweetedBy?: { name: string; handle: string };
 };
 
 type PaginationOptions = {
@@ -57,6 +59,8 @@ type TweetDetailComment = {
   };
   content: string;
   timestamp: string;
+  media?: string[];
+  parentCommentId?: number | null;
 };
 
 type TweetDetail = TimelineTweet & {
@@ -74,6 +78,8 @@ export class TweetsService {
     private readonly tweetRepository: Repository<Tweet>,
     @InjectRepository(Comment)
     private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(LikeEntity)
+    private readonly likeRepository: Repository<LikeEntity>,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly followsService: FollowsService,
     private readonly realtimeGateway: RealtimeGateway,
@@ -365,9 +371,17 @@ export class TweetsService {
     const avatarSeed = encodeURIComponent(String(author?.username ?? tweet.userId));
     const bookmarkedTweetIds = new Set(await this.bookmarksService.getBookmarkedTweetIds(viewerUserId ?? NaN));
 
-    const viewerRetweet = viewerUserId
-      ? await this.tweetRepository.findOne({ where: { userId: viewerUserId, originalTweetId: tweet.id, isRetweet: true } })
-      : null;
+    const [viewerRetweet, viewerLike] = await Promise.all([
+      viewerUserId
+        ? this.tweetRepository.findOne({ where: { userId: viewerUserId, originalTweetId: tweet.id, isRetweet: true } })
+        : Promise.resolve(null),
+      viewerUserId
+        ? this.likeRepository.findOne({ where: { userId: viewerUserId, tweetId: tweet.id } })
+        : Promise.resolve(null),
+    ]);
+
+    // Increment view count (fire-and-forget, don't block response)
+    this.tweetRepository.increment({ id: tweetId }, 'viewCount', 1).catch(() => {});
 
     return {
       tweet: {
@@ -384,9 +398,9 @@ export class TweetsService {
           replies: tweet.commentCount,
           reposts: tweet.retweetCount,
           likes: tweet.likeCount,
-          views: 0,
+          views: tweet.viewCount,
         },
-        isLiked: false,
+        isLiked: !!viewerLike,
         isReposted: !!viewerRetweet,
         isBookmarked: bookmarkedTweetIds.has(tweet.id),
         originalTweetId: tweet.originalTweetId,
@@ -405,6 +419,8 @@ export class TweetsService {
             },
             content: comment.content,
             timestamp: this.formatRelativeTime(comment.createdAt),
+            parentCommentId: comment.parentCommentId ?? null,
+            media: comment.mediaUrls ? comment.mediaUrls.split(',').map((u) => u.trim()).filter(Boolean) : undefined,
           };
         }),
       },
@@ -466,45 +482,84 @@ export class TweetsService {
       return [];
     }
 
-    const authors = await this.usersService.findManyByIds([...new Set(tweets.map((tweet) => tweet.userId))]);
-    const authorMap = new Map<number, TimelineAuthor>(authors.map((author) => [author.id, author]));
-    const bookmarkedTweetIds = new Set(await this.bookmarksService.getBookmarkedTweetIds(viewerUserId ?? NaN));
-
-    let retweetedOriginalIds = new Set<number>();
-    if (viewerUserId) {
-      const tweetIds = tweets.map((t) => t.id);
-      const viewerRetweets = await this.tweetRepository.find({
-        where: { userId: viewerUserId, isRetweet: true, originalTweetId: In(tweetIds) },
-        select: ['originalTweetId'],
-      });
-      retweetedOriginalIds = new Set(viewerRetweets.map((r) => r.originalTweetId));
+    // Fetch original tweets for retweet entries
+    const retweetEntries = tweets.filter((t) => t.isRetweet && t.originalTweetId);
+    const originalTweetIds = [...new Set(retweetEntries.map((t) => t.originalTweetId).filter(Boolean))] as number[];
+    const originalTweetsMap = new Map<number, Tweet>();
+    if (originalTweetIds.length > 0) {
+      const originals = await this.tweetRepository.findBy({ id: In(originalTweetIds) });
+      originals.forEach((t) => originalTweetsMap.set(t.id, t));
     }
 
-    return tweets.map<TimelineTweet>((tweet) => {
-      const author = authorMap.get(tweet.userId);
-      const authorName = author?.displayName ?? author?.username ?? `User ${tweet.userId}`;
-      const avatarSeed = encodeURIComponent(String(author?.username ?? tweet.userId));
+    // Collect all user IDs: retweeters + original tweet authors
+    const allUserIds = new Set([
+      ...tweets.map((t) => t.userId),
+      ...[...originalTweetsMap.values()].map((t) => t.userId),
+    ]);
+    const authors = await this.usersService.findManyByIds([...allUserIds]);
+    const authorMap = new Map<number, TimelineAuthor>(authors.map((a) => [a.id, a]));
+    const bookmarkedTweetIds = new Set(await this.bookmarksService.getBookmarkedTweetIds(viewerUserId ?? NaN));
+
+    // Resolve effective IDs (original tweet ID for retweet entries)
+    const effectiveIds = tweets.map((t) =>
+      t.isRetweet && t.originalTweetId && originalTweetsMap.has(t.originalTweetId) ? t.originalTweetId : t.id,
+    );
+
+    let retweetedOriginalIds = new Set<number>();
+    let likedTweetIds = new Set<number>();
+    if (viewerUserId) {
+      const [viewerRetweets, viewerLikes] = await Promise.all([
+        this.tweetRepository.find({
+          where: { userId: viewerUserId, isRetweet: true, originalTweetId: In(effectiveIds) },
+          select: ['originalTweetId'],
+        }),
+        this.likeRepository.find({
+          where: { userId: viewerUserId, tweetId: In(effectiveIds) },
+          select: ['tweetId'],
+        }),
+      ]);
+      retweetedOriginalIds = new Set(viewerRetweets.map((r) => r.originalTweetId));
+      likedTweetIds = new Set(viewerLikes.map((l) => l.tweetId));
+    }
+
+    return tweets.map<TimelineTweet>((tweet, index) => {
+      const effectiveId = effectiveIds[index];
+      const isRetweet = tweet.isRetweet && tweet.originalTweetId && originalTweetsMap.has(tweet.originalTweetId);
+      const sourceTweet = isRetweet ? originalTweetsMap.get(tweet.originalTweetId!)! : tweet;
+
+      const author = authorMap.get(sourceTweet.userId);
+      const avatarSeed = encodeURIComponent(String(author?.username ?? sourceTweet.userId));
+
+      let retweetedBy: { name: string; handle: string } | undefined;
+      if (isRetweet) {
+        const retweeter = authorMap.get(tweet.userId);
+        retweetedBy = {
+          name: retweeter?.displayName ?? retweeter?.username ?? `User ${tweet.userId}`,
+          handle: retweeter?.username ?? `user${tweet.userId}`,
+        };
+      }
 
       return {
-        id: tweet.id.toString(),
+        id: effectiveId.toString(),
         author: {
-          id: tweet.userId,
-          name: authorName,
-          handle: author?.username ?? `user${tweet.userId}`,
+          id: sourceTweet.userId,
+          name: author?.displayName ?? author?.username ?? `User ${sourceTweet.userId}`,
+          handle: author?.username ?? `user${sourceTweet.userId}`,
           avatar: author?.avatarUrl ?? `https://i.pravatar.cc/150?u=${avatarSeed}`,
         },
-        content: tweet.content,
+        content: sourceTweet.content,
         timestamp: this.formatRelativeTime(tweet.createdAt),
         stats: {
-          replies: tweet.commentCount,
-          reposts: tweet.retweetCount,
-          likes: tweet.likeCount,
-          views: 0,
+          replies: sourceTweet.commentCount,
+          reposts: sourceTweet.retweetCount,
+          likes: sourceTweet.likeCount,
+          views: sourceTweet.viewCount,
         },
-        isLiked: false,
-        isReposted: retweetedOriginalIds.has(tweet.id),
-        isBookmarked: bookmarkedTweetIds.has(tweet.id),
-        media: tweet.mediaUrls ? tweet.mediaUrls.split(',').map((url) => url.trim()).filter(Boolean) : undefined,
+        isLiked: likedTweetIds.has(effectiveId),
+        isReposted: retweetedOriginalIds.has(effectiveId),
+        isBookmarked: bookmarkedTweetIds.has(effectiveId),
+        media: sourceTweet.mediaUrls ? sourceTweet.mediaUrls.split(',').map((url) => url.trim()).filter(Boolean) : undefined,
+        retweetedBy,
       };
     });
   }
