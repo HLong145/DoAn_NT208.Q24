@@ -88,6 +88,10 @@ export function getFollowing(handle: string) {
   return apiRequest<UserSummary[]>(`/users/${encodeURIComponent(handle)}/following`);
 }
 
+export function getAvailableToChat() {
+  return apiRequest<UserSummary[]>('/users/available-to-chat');
+}
+
 export function updateMyProfile(payload: UpdateProfilePayload) {
   return apiRequest<UserProfile>('/users/me/profile', {
     method: 'PATCH',

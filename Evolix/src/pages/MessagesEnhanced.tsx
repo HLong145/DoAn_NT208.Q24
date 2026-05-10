@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { createRealtimeSocket } from '../services/realtimeClient';
 import { useAuth } from '../contexts/AuthContext';
 import { createConversation, getConversationMessages, getConversationThreads, searchConversationMessages, sendConversationMessage, type ConversationMessage, type ConversationMessageSearchResult, type ConversationThread } from '../services/messagesApi';
-import { searchUsers, type UserSummary } from '../services/usersApi';
+import { searchUsers, getAvailableToChat, type UserSummary } from '../services/usersApi';
 
 const CHAT_FILTERS = ['all', 'unread', 'direct'] as const;
 type ChatFilter = typeof CHAT_FILTERS[number];
@@ -81,6 +81,7 @@ export default function MessagesEnhanced() {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const newMessageMenuRef = useRef<HTMLDivElement>(null);
+  const newMessageButtonRef = useRef<HTMLButtonElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +102,11 @@ export default function MessagesEnhanced() {
       if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
         setIsFilterMenuOpen(false);
       }
-      if (newMessageMenuRef.current && !newMessageMenuRef.current.contains(event.target as Node)) {
+      if (
+        newMessageMenuRef.current
+        && !newMessageMenuRef.current.contains(event.target as Node)
+        && !(newMessageButtonRef.current && newMessageButtonRef.current.contains(event.target as Node))
+      ) {
         setIsNewMessageOpen(false);
       }
     };
@@ -154,16 +159,13 @@ export default function MessagesEnhanced() {
   useEffect(() => {
     const trimmedQuery = newMessageQuery.trim();
 
-    if (!trimmedQuery) {
-      setNewMessageResults([]);
-      return;
-    }
-
     const loadUsers = async () => {
       try {
-        const users = await searchUsers(trimmedQuery);
+        const users = trimmedQuery ? await searchUsers(trimmedQuery) : await getAvailableToChat();
+        console.log('[New Message] Loaded users:', users);
         setNewMessageResults(users.filter((user) => user.id.toString() !== currentUser?.id));
-      } catch {
+      } catch (error) {
+        console.error('[New Message] Error loading users:', error);
         setNewMessageResults([]);
       }
     };
@@ -390,6 +392,18 @@ export default function MessagesEnhanced() {
     setShowEmojiPicker(false);
   };
 
+  // Debug: log when modal state changes
+  useEffect(() => {
+    console.log('[Modal State] isNewMessageOpen:', isNewMessageOpen, 'newMessageResults:', newMessageResults.length);
+  }, [isNewMessageOpen, newMessageResults]);
+
+  const getUnreadCountForUser = (userId: number) => {
+    const thread = threads.find((t) => t.participant.id === userId);
+    const unreadCount = thread?.unreadCount ?? 0;
+    console.log('[Unread] User:', userId, 'Thread:', thread?.id, 'Unread:', unreadCount);
+    return unreadCount;
+  };
+
   return (
     <div className="flex w-full min-w-0 h-screen bg-black text-white">
       <section className={`flex-shrink-0 border-r border-white/10 h-screen flex-col bg-black z-10 ${activeThread ? 'hidden md:flex' : 'flex'} w-full md:w-[390px] md:min-w-[390px]`}>
@@ -425,9 +439,15 @@ export default function MessagesEnhanced() {
               </div>
 
               <button
-                onClick={() => setIsNewMessageOpen(true)}
-                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 p-2 text-white transition-colors hover:bg-white/10"
+                ref={newMessageButtonRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('[New Message] Button clicked, opening modal');
+                  setIsNewMessageOpen(true);
+                }}
+                className="relative z-50 inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 p-2 text-white transition-colors hover:bg-white/10"
                 aria-label="New Message"
+                type="button"
               >
                 <UserPlus className="w-5 h-5" />
               </button>
@@ -498,9 +518,7 @@ export default function MessagesEnhanced() {
                         </p>
                       </div>
                       {thread.unreadCount > 0 && (
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 self-center">
-                          <span className="text-xs font-bold text-black">{thread.unreadCount}</span>
-                        </div>
+                        <div className="flex h-2.5 w-2.5 items-center justify-center rounded-full bg-orange-500 self-center flex-shrink-0"></div>
                       )}
                     </div>
                   </button>
@@ -571,14 +589,23 @@ export default function MessagesEnhanced() {
       </section>
 
       {isNewMessageOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
-          <div ref={newMessageMenuRef} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0d0d0d] p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onMouseDown={(e) => {
+          // Only close if clicking directly on overlay, not on modal or children
+          if (e.target === e.currentTarget) {
+            console.log('[Modal] Clicked outside, closing');
+            setIsNewMessageOpen(false);
+          }
+        }}>
+          <div ref={newMessageMenuRef} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0d0d0d] p-5 shadow-2xl z-50" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white">New Message</h2>
                 <p className="text-sm text-text-muted">Search for a person to start a conversation.</p>
               </div>
-              <button onClick={() => setIsNewMessageOpen(false)} className="rounded-full p-2 text-text-muted transition-colors hover:bg-white/10 hover:text-white">
+              <button onClick={() => {
+                console.log('[New Message] Close button clicked');
+                setIsNewMessageOpen(false);
+              }} className="rounded-full p-2 text-text-muted transition-colors hover:bg-white/10 hover:text-white" type="button">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -594,31 +621,42 @@ export default function MessagesEnhanced() {
             </div>
             <div className="max-h-72 space-y-2 overflow-y-auto">
               {newMessageResults.length > 0 ? (
-                newMessageResults.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => void startConversation(user.id)}
-                    disabled={isStartingConversation}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 px-4 py-3 text-left transition-colors hover:bg-white/5 disabled:opacity-50"
-                  >
-                    {user.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={resolveDisplayName(user.displayName, user.username)} className="h-10 w-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 font-bold text-white">
-                        {resolveDisplayName(user.displayName, user.username).charAt(0)?.toUpperCase()}
+                newMessageResults.map((user) => {
+                  const unreadCount = getUnreadCountForUser(user.id);
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => {
+                        console.log('[New Message] Starting conversation with:', user.id, user.username);
+                        void startConversation(user.id);
+                      }}
+                      disabled={isStartingConversation}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 px-4 py-3 text-left transition-colors hover:bg-white/5 disabled:opacity-50"
+                    >
+                      <div className="relative">
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt={resolveDisplayName(user.displayName, user.username)} className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 font-bold text-white">
+                            {resolveDisplayName(user.displayName, user.username).charAt(0)?.toUpperCase()}
+                          </div>
+                        )}
+                        {unreadCount > 0 && (
+                          <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500"></div>
+                        )}
                       </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-bold text-white">{resolveDisplayName(user.displayName, user.username)}</div>
-                      <div className="truncate text-sm text-text-muted">@{user.username}</div>
-                    </div>
-                    <Plus className="w-4 h-4 text-text-muted" />
-                  </button>
-                ))
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-bold text-white">{resolveDisplayName(user.displayName, user.username)}</div>
+                        <div className="truncate text-sm text-text-muted">@{user.username}</div>
+                      </div>
+                      <Plus className="w-4 h-4 text-text-muted" />
+                    </button>
+                  );
+                })
               ) : newMessageQuery.trim().length > 0 ? (
                 <div className="py-6 text-center text-text-muted">No people found.</div>
               ) : (
-                <div className="py-6 text-center text-text-muted">Type a name to search.</div>
+                <div className="py-6 text-center text-text-muted">No users to chat with. Follow someone first!</div>
               )}
             </div>
           </div>

@@ -51,6 +51,12 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('available-to-chat')
+  availableToChat(@Request() req) {
+    return this.usersService.getAvailableToChat(req.user.sub);
+  }
+
+  @UseGuards(AuthGuard)
   @Patch('me/profile')
   updateMyProfile(@Request() req, @Body() body: UpdateProfileDto) {
     return this.usersService.updateMyProfile(req.user.sub, body ?? {});

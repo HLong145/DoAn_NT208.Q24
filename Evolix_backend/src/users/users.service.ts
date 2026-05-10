@@ -181,6 +181,42 @@ export class UsersService {
     }));
   }
 
+  async getAvailableToChat(viewerUserId: number) {
+    // Get users that the viewer is following
+    const followingRows = await this.followRepository.find({ where: { followerId: viewerUserId } });
+    const followingIds = followingRows.map(f => f.followingId);
+
+    // Get users that follow the viewer
+    const followerRows = await this.followRepository.find({ where: { followingId: viewerUserId } });
+    const followerIds = followerRows.map(f => f.followerId);
+
+    const candidateIds = [...new Set([...followingIds, ...followerIds])].filter(id => id !== viewerUserId);
+
+    if (candidateIds.length === 0) return [];
+
+    const users = await this.userRepository.find({
+      where: { id: In(candidateIds) },
+      select: ['id', 'username', 'email', 'displayName', 'avatarUrl'],
+    });
+
+    // Preserve order: following first, then followers (deduped)
+    const idOrder: number[] = [];
+    for (const id of followingIds) if (id !== viewerUserId && !idOrder.includes(id)) idOrder.push(id);
+    for (const id of followerIds) if (id !== viewerUserId && !idOrder.includes(id)) idOrder.push(id);
+
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    return idOrder.map(id => {
+      const u = userMap.get(id)!;
+      return {
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName ?? u.username,
+        avatarUrl: u.avatarUrl ?? null,
+      };
+    }).filter(Boolean);
+  }
+
   async updateMyProfile(userId: number, updates: {
     name?: string;
     bio?: string;

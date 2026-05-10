@@ -4,11 +4,13 @@ import { Home, Search, Bell, Mail, User, Users, Bookmark, PenSquare, MoreHorizon
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
+import { getConversationThreads } from '../services/messagesApi';
 
 export default function Layout() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isDisplayModalOpen, setIsDisplayModalOpen] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -48,6 +50,24 @@ export default function Layout() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch unread message count
+  useEffect(() => {
+    const loadUnreadMessages = async () => {
+      try {
+        const threads = await getConversationThreads();
+        const totalUnread = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+        setUnreadMessageCount(totalUnread);
+      } catch (error) {
+        console.error('[Layout] Error loading unread messages:', error);
+      }
+    };
+
+    void loadUnreadMessages();
+    // Poll every 5 seconds to update unread count
+    const interval = setInterval(() => void loadUnreadMessages(), 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleDisplayClick = () => {
@@ -130,7 +150,14 @@ export default function Layout() {
               <span className={navTextClass} style={navTextStyle}>Bookmarks</span>
             </NavLink>
             <NavLink to="/messages" className={({ isActive }) => navLinkClass(isActive)}>
-              <Mail className="w-7 h-7" strokeWidth={2.2} />
+              <div className="relative">
+                <Mail className="w-7 h-7" strokeWidth={2.2} />
+                {unreadMessageCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[#ff3b30] border-2 border-bg-base text-[10px] leading-none text-white flex items-center justify-center font-bold">
+                    {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                  </span>
+                )}
+              </div>
               <span className={navTextClass} style={navTextStyle}>Chat</span>
             </NavLink>
             <NavLink to="/profile" className={({ isActive }) => navLinkClass(isActive)}>
