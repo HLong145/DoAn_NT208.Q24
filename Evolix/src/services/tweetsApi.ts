@@ -21,6 +21,7 @@ export type TimelineTweet = {
   isReposted?: boolean;
   isBookmarked?: boolean;
   media?: string[];
+  retweetedBy?: { name: string; handle: string };
 };
 
 export type TweetComment = {
@@ -33,6 +34,8 @@ export type TweetComment = {
   };
   content: string;
   timestamp: string;
+  parentCommentId?: number | null;
+  media?: string[];
 };
 
 export type TweetDetail = TimelineTweet & {
@@ -101,9 +104,12 @@ export function searchTweets(query: string, viewerUserId?: string) {
   return apiRequest<TimelineTweet[]>(`/tweets/search?${queryParams.toString()}`);
 }
 
-export function getTweetsByUser(userId: number, viewerUserId?: string) {
-  const queryParams = viewerUserId ? `?viewerUserId=${encodeURIComponent(viewerUserId)}` : '';
-  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${queryParams}`);
+export function getTweetsByUser(userId: number, viewerUserId?: string, offset = 0) {
+  const params = new URLSearchParams();
+  if (viewerUserId) params.set('viewerUserId', viewerUserId);
+  if (offset > 0) params.set('offset', String(offset));
+  const qs = params.toString();
+  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${qs ? `?${qs}` : ''}`);
 }
 
 export async function createTweet(content: string, mediaFiles?: File[]) {
