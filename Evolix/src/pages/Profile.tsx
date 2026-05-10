@@ -454,13 +454,13 @@ export default function Profile() {
               >
                 Likes
                 {activeTab === 'likes' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-t-full"></div>}
+              </button>
               <button
                 onClick={() => setActiveTab('following')}
                 className={`flex-1 py-4 hover:bg-border/50 transition-colors relative ${activeTab === 'following' ? 'text-text-base' : 'text-text-muted'}`}
               >
                 Following
                 {activeTab === 'following' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-t-full"></div>}
-              </button>
               </button>
             </div>
 
