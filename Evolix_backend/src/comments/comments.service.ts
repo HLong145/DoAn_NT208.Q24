@@ -18,6 +18,8 @@ type CommentListItem = {
   author: CommentAuthor;
   content: string;
   timestamp: string;
+  media?: string[];
+  parentCommentId?: number | null;
 };
 
 @Injectable()
@@ -33,23 +35,22 @@ export class CommentsService {
   ) {}
 
   // Create a new comment and increment the tweet's comment count
-  async createComment(userId: number, tweetId: number, content: string) {
-    // 1. Check if comment content is empty
-    if (!content) {
-      throw new BadRequestException('Comment content cannot be empty!');
+  async createComment(userId: number, tweetId: number, content: string, parentCommentId?: number, mediaUrls?: string) {
+    if (!content && !mediaUrls) {
+      throw new BadRequestException('Comment must have text or media!');
     }
 
-    // 2. Verify if the tweet actually exists
     const tweet = await this.tweetRepository.findOne({ where: { id: tweetId } });
     if (!tweet) {
       throw new NotFoundException('Tweet not found! Cannot comment on a ghost tweet.');
     }
 
-    // 3. Create and save the new comment record
     const newComment = this.commentRepository.create({
-      userId: userId,
-      tweetId: tweetId,
-      content: content,
+      userId,
+      tweetId,
+      content,
+      ...(parentCommentId ? { parentCommentId } : {}),
+      ...(mediaUrls ? { mediaUrls } : {}),
     });
     await this.commentRepository.save(newComment);
 
@@ -87,12 +88,14 @@ export class CommentsService {
         id: comment.id.toString(),
         author: {
           id: comment.userId,
-          name: commentAuthor?.username ?? `User ${comment.userId}`,
+          name: commentAuthor?.displayName ?? commentAuthor?.username ?? `User ${comment.userId}`,
           handle: commentAuthor?.username ?? `user${comment.userId}`,
-          avatar: `https://i.pravatar.cc/150?u=${avatarSeed}`,
+          avatar: commentAuthor?.avatarUrl ?? `https://i.pravatar.cc/150?u=${avatarSeed}`,
         },
         content: comment.content,
         timestamp: this.formatRelativeTime(comment.createdAt),
+        parentCommentId: comment.parentCommentId ?? null,
+        media: comment.mediaUrls ? comment.mediaUrls.split(',').map((u) => u.trim()).filter(Boolean) : undefined,
       };
     });
   }
