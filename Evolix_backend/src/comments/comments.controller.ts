@@ -1,8 +1,19 @@
-import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Inject, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Inject, Get, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { ClientKafka, EventPattern, Payload } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { CommentsService } from './comments.service';
 import { AuthGuard } from '../auth/auth.guard';
+
+const uploadStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads'),
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `${unique}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('comments')
 export class CommentsController {
@@ -22,21 +33,25 @@ export class CommentsController {
   // Endpoint to add a comment: POST http://localhost:3000/comments/:tweetId
   @UseGuards(AuthGuard)
   @Post(':tweetId')
+  @UseInterceptors(FilesInterceptor('media', 4, { storage: uploadStorage }))
   async createComment(
-    @Request() req,
-    // Extract tweetId from the URL
+    @Request() req: any,
     @Param('tweetId', ParseIntPipe) tweetId: number,
-    // Extract the comment text from the request body
     @Body('content') content: string,
+    @Body('parentCommentId') parentCommentId?: number,
+    @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    // Get user ID from the token
     const userId = req.user.sub;
-    
-    // Đóng gói dữ liệu bình luận bao gồm ID người dùng, ID bài viết và nội dung
+    const mediaUrls = files?.length
+      ? files.map((f) => `/uploads/${f.filename}`).join(',')
+      : null;
+
     const messagePayload = {
-      userId: userId,
-      tweetId: tweetId,
-      content: content,
+      userId,
+      tweetId,
+      content,
+      parentCommentId: parentCommentId ?? null,
+      mediaUrls,
     };
 
     // Đẩy sự kiện vào Kafka để xử lý bất đồng bộ (Asynchronous processing)
@@ -57,20 +72,17 @@ export class CommentsController {
    */
   @EventPattern('tweet.comment')
   async handleTweetComment(@Payload() message: any) {
-    // Phân tích dữ liệu JSON thành Object (xử lý an toàn cho cả trường hợp data là string hoặc object)
     let data = message;
     if (typeof message === 'string') {
       data = JSON.parse(message);
     } else if (message.value) {
       data = message.value;
     }
-    
-    // Đảm bảo dữ liệu được bóc tách an toàn nếu nó là chuỗi JSON lồng nhau
-    const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-    const { userId, tweetId, content } = parsedData;
 
-    // Gọi service để thực thi logic tạo bình luận trong cơ sở dữ liệu MySQL
-    await this.commentsService.createComment(userId, tweetId, content);
+    const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+    const { userId, tweetId, content, parentCommentId, mediaUrls } = parsedData;
+
+    await this.commentsService.createComment(userId, tweetId, content, parentCommentId ?? undefined, mediaUrls ?? undefined);
     
     // Ghi log ra Terminal để theo dõi tiến trình làm việc của Background Worker
     console.log(`[Kafka Consumer] Successfully processed comment from User ID: ${userId} on Tweet ID: ${tweetId}`);
