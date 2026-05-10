@@ -50,17 +50,13 @@ export default function Login() {
 
       <div className="mx-auto max-w-[1120px] grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="hidden lg:block">
-          <div className="w-16 h-16 bg-text-base text-bg-base flex items-center justify-center font-bold text-3xl rounded-md mb-10">
-            E
-          </div>
+          <img src="/images/web_logo.jpg" alt="Evolix" className="w-16 h-16 object-contain rounded-xl mb-10" />
           <h1 className="text-6xl font-extrabold tracking-tight leading-[1.05]">Happening now.</h1>
           <p className="text-xl text-text-muted mt-4 max-w-md">Join Evolix and follow what matters.</p>
         </div>
 
         <div className="w-full max-w-[420px]">
-          <div className="lg:hidden w-12 h-12 bg-text-base text-bg-base flex items-center justify-center font-bold text-2xl rounded-md mb-8">
-            E
-          </div>
+          <img src="/images/web_logo.jpg" alt="Evolix" className="lg:hidden w-12 h-12 object-contain rounded-xl mb-8" />
 
           <h2 className="text-[32px] font-extrabold tracking-tight mb-6">Sign in</h2>
 
