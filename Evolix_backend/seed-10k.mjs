@@ -39,7 +39,7 @@ async function main() {
   console.log('Connecting to DB…');
   const conn = await mysql.createConnection(DB);
 
-  const [[{ cnt }]] = await conn.query('SELECT COUNT(*) as cnt FROM user');
+  const [[{ cnt }]] = await conn.query('SELECT COUNT(*) as cnt FROM users');
   console.log(`Existing users: ${cnt}`);
 
   if (Number(cnt) >= TOTAL_USERS) {
@@ -77,7 +77,7 @@ async function main() {
     }
 
     const [result] = await conn.query(
-      `INSERT INTO user (username, email, password, displayName, avatarUrl, headerUrl, isActive, createdAt)
+      `INSERT INTO users (username, email, password, displayName, avatarUrl, headerUrl, isActive, created_at)
        VALUES ${placeholders.join(',')}`,
       params,
     );
@@ -107,7 +107,7 @@ async function main() {
     }
 
     await conn.query(
-      `INSERT INTO tweet (userId, content, likeCount, commentCount, isRetweet, createdAt)
+      `INSERT INTO tweets (userId, content, likeCount, commentCount, isRetweet, createdAt)
        VALUES ${placeholders.join(',')}`,
       params,
     );
@@ -140,7 +140,7 @@ async function main() {
 
     if (placeholders.length > 0) {
       await conn.query(
-        `INSERT IGNORE INTO follow (followerId, followingId) VALUES ${placeholders.join(',')}`,
+        `INSERT IGNORE INTO follows (followerId, followingId) VALUES ${placeholders.join(',')}`,
         params,
       );
       followsTotal += placeholders.length;
@@ -157,4 +157,4 @@ async function main() {
   console.log(`   Total follows: ~${followsTotal}`);
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => { console.error(err); process.exit(1); });;
