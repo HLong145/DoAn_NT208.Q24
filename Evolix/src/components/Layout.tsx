@@ -87,9 +87,13 @@ export default function Layout() {
           <NavLink
             to="/"
             aria-label="Home"
-            onClick={() => {
+            onClick={(e) => {
               setIsMoreMenuOpen(false);
               setIsAccountMenuOpen(false);
+              if (location.pathname === '/') {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
             }}
             className={`w-12 h-12 flex items-center justify-center ${isMessagesRoute ? '' : 'xl:justify-start xl:w-full xl:px-3'} rounded-full hover:bg-border/50 transition-colors mb-2`}
           >
