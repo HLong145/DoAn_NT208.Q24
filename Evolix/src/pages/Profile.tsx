@@ -34,6 +34,11 @@ export default function Profile() {
   const [followingList, setFollowingList] = useState<UserSummary[]>([]);
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
+  const postsOffsetRef = useRef(0);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const POSTS_PAGE_SIZE = 20;
 
   const handleShareProfile = async () => {
     if (!profile?.user.handle) {
@@ -161,10 +166,14 @@ export default function Profile() {
         return;
       }
 
+      postsOffsetRef.current = 0;
+      setHasMorePosts(true);
       try {
         setIsLoadingTweets(true);
-        const tweets = await getTweetsByUser(profile.user.id);
+        const tweets = await getTweetsByUser(profile.user.id, undefined, 0);
         setProfileTweets(tweets);
+        postsOffsetRef.current = tweets.length;
+        if (tweets.length < POSTS_PAGE_SIZE) setHasMorePosts(false);
       } catch (error) {
         console.error('Could not load profile tweets:', error);
         setProfileTweets([]);
@@ -175,6 +184,33 @@ export default function Profile() {
 
     void loadProfileTweets();
   }, [profile?.user.id]);
+
+  const loadMorePosts = async () => {
+    if (!profile?.user.id || isLoadingMorePosts || !hasMorePosts) return;
+    setIsLoadingMorePosts(true);
+    try {
+      const more = await getTweetsByUser(profile.user.id, undefined, postsOffsetRef.current);
+      setProfileTweets((prev) => [...prev, ...more]);
+      postsOffsetRef.current += more.length;
+      if (more.length < POSTS_PAGE_SIZE) setHasMorePosts(false);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingMorePosts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'tweets') return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) void loadMorePosts(); },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeTab, hasMorePosts, isLoadingMorePosts, profile?.user.id]);
 
   const isOwnProfile = Boolean(currentUser?.handle && profile?.user.handle === currentUser.handle);
 
@@ -292,7 +328,7 @@ export default function Profile() {
   return (
     <>
       <main className="flex-1 min-w-0 border-r border-border pb-20 sm:pb-0 relative">
-        <div className="sticky top-0 bg-bg-base/85 backdrop-blur-xl z-10 border-b border-border px-4 py-2 flex items-center gap-4">
+        <div className="sticky top-0 bg-bg-base/85 backdrop-blur-xl z-20 border-b border-border px-4 py-2 flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-border/50 rounded-full transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -525,9 +561,49 @@ export default function Profile() {
                     <p>No posts yet.</p>
                   </div>
                 )
+              ) : activeTab === 'media' ? (
+                isLoadingTweets ? (
+                  <div className="p-8 text-center text-text-muted">Loading media...</div>
+                ) : (() => {
+                    const mediaItems = profileTweets
+                      .filter((t) => t.media && t.media.length > 0)
+                      .flatMap((t) => (t.media ?? []).map((url) => ({ url, tweetId: t.id })));
+                    return mediaItems.length > 0 ? (
+                      <div className="p-3 grid grid-cols-3 gap-1">
+                        {mediaItems.map(({ url, tweetId }, idx) => {
+                          const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)(\?|$)/i.test(url);
+                          return isVideo ? (
+                            <video
+                              key={`${tweetId}-${idx}`}
+                              src={url}
+                              className="w-full aspect-square object-cover rounded-sm cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => navigate(`/tweet/${tweetId}`)}
+                            />
+                          ) : (
+                            <img
+                              key={`${tweetId}-${idx}`}
+                              src={url}
+                              alt="Media"
+                              className="w-full aspect-square object-cover rounded-sm cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => navigate(`/tweet/${tweetId}`)}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-text-muted">
+                        <p>No media yet.</p>
+                      </div>
+                    );
+                  })()
               ) : (
                 <div className="p-8 text-center text-text-muted">
                   <p>Nothing to see here yet.</p>
+                </div>
+              )}
+              {activeTab === 'tweets' && (
+                <div ref={loadMoreSentinelRef} className="py-2 text-center text-sm text-text-muted">
+                  {isLoadingMorePosts ? 'Loading more...' : (!hasMorePosts && profileTweets.length > 0 ? "You're all caught up" : '')}
                 </div>
               )}
             </div>
