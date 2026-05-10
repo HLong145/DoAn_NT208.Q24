@@ -28,13 +28,14 @@ interface TweetProps {
   isBookmarked?: boolean;
   media?: string[];
   onBookmarkChange?: (tweetId: string, bookmarked: boolean) => void;
+  retweetedBy?: { name: string; handle: string };
 }
 
 interface TweetMenuProps {
   isFollowingAuthor?: boolean;
 }
 
-export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange, isFollowingAuthor: initialIsFollowingAuthor }: TweetProps & TweetMenuProps) {
+export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange, isFollowingAuthor: initialIsFollowingAuthor, retweetedBy }: TweetProps & TweetMenuProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [isLiked, setIsLiked] = useState(initialIsLiked || false);
@@ -189,10 +190,22 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   };
 
   return (
-    <article 
-      className="px-4 py-3 border-b border-border hover:bg-border/35 transition-colors cursor-pointer flex gap-3"
+    <article
+      className="px-4 pt-2 pb-3 border-b border-border hover:bg-border/35 transition-colors cursor-pointer"
       onClick={() => navigate(`/tweet/${id}`)}
     >
+      {retweetedBy && (
+        <div className="flex items-center gap-2 text-text-muted text-[13px] font-bold mb-1 pl-10">
+          <Repeat2 className="w-3.5 h-3.5" />
+          <span
+            className="hover:underline cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); navigate(`/profile/${retweetedBy.handle}`); }}
+          >
+            {retweetedBy.name} reposted
+          </span>
+        </div>
+      )}
+      <div className="flex gap-3">
       <Link to={`/profile/${author.handle}`} className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
         <img src={author.avatar} alt={author.name} className="w-10 h-10 rounded-full object-cover hover:opacity-80 transition-opacity" />
       </Link>
@@ -331,6 +344,7 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
             </button>
           </div>
         </div>
+      </div>
       </div>
     </article>
   );
