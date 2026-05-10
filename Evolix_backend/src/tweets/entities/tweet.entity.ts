@@ -36,6 +36,10 @@ export class Tweet {
   @Column({ default: 0 })
   commentCount: number;
 
+  // Cached counter for retweets
+  @Column({ default: 0 })
+  retweetCount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 }

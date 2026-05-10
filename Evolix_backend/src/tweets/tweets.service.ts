@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Like, Repository, Not } from 'typeorm';
+import { In, Like, Repository } from 'typeorm';
 import { Tweet } from './entities/tweet.entity';
 import { Comment } from '../comments/entities/comment.entity';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -214,35 +214,40 @@ export class TweetsService {
    * @returns Thông báo thành công và dữ liệu bài viết (retweet) vừa tạo.
    */
   async retweet(userId: number, originalTweetId: number) {
-    // Kiểm tra sự tồn tại của bài viết gốc
     const originalTweet = await this.tweetRepository.findOne({ where: { id: originalTweetId } });
-    
     if (!originalTweet) {
       throw new NotFoundException('Original tweet not found');
     }
 
-    // Khởi tạo bài viết mới với cờ isRetweet được bật
-    const newRetweet = this.tweetRepository.create({
-      userId: userId,
-      isRetweet: true,
-      originalTweetId: originalTweetId,
-      content: '', // Mặc định retweet không có nội dung bổ sung
+    const existingRetweet = await this.tweetRepository.findOne({
+      where: { userId, originalTweetId, isRetweet: true },
     });
 
-    await this.tweetRepository.save(newRetweet);
-
     const followerIds = await this.followsService.findFollowerIds(userId);
+
+    if (existingRetweet) {
+      await this.tweetRepository.remove(existingRetweet);
+      if (originalTweet.retweetCount > 0) {
+        await this.tweetRepository.decrement({ id: originalTweetId }, 'retweetCount', 1);
+      }
+      await this.invalidateTimelineCaches([userId, ...followerIds]);
+      return { message: 'Unretweeted successfully', isReposted: false };
+    }
+
+    const newRetweet = this.tweetRepository.create({
+      userId,
+      isRetweet: true,
+      originalTweetId,
+      content: '',
+    });
+    await this.tweetRepository.save(newRetweet);
+    await this.tweetRepository.increment({ id: originalTweetId }, 'retweetCount', 1);
+
     await this.invalidateTimelineCaches([userId, ...followerIds]);
     await this.invalidateDiscoveryCaches(originalTweet.content);
 
     if (followerIds.length > 0) {
-      await this.notificationsService.createForRecipients(
-        followerIds,
-        userId,
-        'tweet',
-        newRetweet.id,
-      );
-
+      await this.notificationsService.createForRecipients(followerIds, userId, 'tweet', newRetweet.id);
       this.realtimeGateway.sendNotificationToFollowers(
         followerIds.map((followerId) => followerId.toString()),
         {
@@ -256,10 +261,7 @@ export class TweetsService {
       );
     }
 
-    return {
-      message: 'Retweeted successfully',
-      tweet: newRetweet,
-    };
+    return { message: 'Retweeted successfully', isReposted: true };
   }
 
   /**
@@ -290,10 +292,14 @@ export class TweetsService {
     }
 
     const followingIds = await this.followsService.findFollowingIds(userId);
-    const timelineAuthorIds = [...new Set([userId, ...followingIds])];
+
+    if (followingIds.length === 0) {
+      await this.cacheManager.set(cacheKey, [], 60000);
+      return [];
+    }
 
     const tweets = await this.tweetRepository.find({
-      where: { userId: In(timelineAuthorIds) },
+      where: { userId: In(followingIds) },
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
@@ -359,6 +365,10 @@ export class TweetsService {
     const avatarSeed = encodeURIComponent(String(author?.username ?? tweet.userId));
     const bookmarkedTweetIds = new Set(await this.bookmarksService.getBookmarkedTweetIds(viewerUserId ?? NaN));
 
+    const viewerRetweet = viewerUserId
+      ? await this.tweetRepository.findOne({ where: { userId: viewerUserId, originalTweetId: tweet.id, isRetweet: true } })
+      : null;
+
     return {
       tweet: {
         id: tweet.id.toString(),
@@ -372,12 +382,12 @@ export class TweetsService {
         timestamp: this.formatRelativeTime(tweet.createdAt),
         stats: {
           replies: tweet.commentCount,
-          reposts: tweet.isRetweet ? 1 : 0,
+          reposts: tweet.retweetCount,
           likes: tweet.likeCount,
           views: 0,
         },
         isLiked: false,
-        isReposted: tweet.isRetweet,
+        isReposted: !!viewerRetweet,
         isBookmarked: bookmarkedTweetIds.has(tweet.id),
         originalTweetId: tweet.originalTweetId,
         media: tweet.mediaUrls ? tweet.mediaUrls.split(',').map((url) => url.trim()).filter(Boolean) : undefined,
@@ -460,6 +470,16 @@ export class TweetsService {
     const authorMap = new Map<number, TimelineAuthor>(authors.map((author) => [author.id, author]));
     const bookmarkedTweetIds = new Set(await this.bookmarksService.getBookmarkedTweetIds(viewerUserId ?? NaN));
 
+    let retweetedOriginalIds = new Set<number>();
+    if (viewerUserId) {
+      const tweetIds = tweets.map((t) => t.id);
+      const viewerRetweets = await this.tweetRepository.find({
+        where: { userId: viewerUserId, isRetweet: true, originalTweetId: In(tweetIds) },
+        select: ['originalTweetId'],
+      });
+      retweetedOriginalIds = new Set(viewerRetweets.map((r) => r.originalTweetId));
+    }
+
     return tweets.map<TimelineTweet>((tweet) => {
       const author = authorMap.get(tweet.userId);
       const authorName = author?.displayName ?? author?.username ?? `User ${tweet.userId}`;
@@ -477,12 +497,12 @@ export class TweetsService {
         timestamp: this.formatRelativeTime(tweet.createdAt),
         stats: {
           replies: tweet.commentCount,
-          reposts: tweet.isRetweet ? 1 : 0,
+          reposts: tweet.retweetCount,
           likes: tweet.likeCount,
           views: 0,
         },
         isLiked: false,
-        isReposted: tweet.isRetweet,
+        isReposted: retweetedOriginalIds.has(tweet.id),
         isBookmarked: bookmarkedTweetIds.has(tweet.id),
         media: tweet.mediaUrls ? tweet.mediaUrls.split(',').map((url) => url.trim()).filter(Boolean) : undefined,
       };

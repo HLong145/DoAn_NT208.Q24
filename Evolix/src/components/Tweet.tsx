@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal, UserPlus, UserMinus, VolumeX, Ban, BarChart, Flag, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toggleBookmark } from '../services/bookmarksApi';
 import { toggleLike } from '../services/likesApi';
 import { retweetTweet } from '../services/tweetsApi';
+import { useAuth } from '../contexts/AuthContext';
+import { toggleFollow } from '../services/followsApi';
 
 interface TweetProps {
   id: string;
   author: {
+    id?: number;
     name: string;
     handle: string;
     avatar: string;
@@ -27,8 +30,13 @@ interface TweetProps {
   onBookmarkChange?: (tweetId: string, bookmarked: boolean) => void;
 }
 
-export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange }: TweetProps) {
+interface TweetMenuProps {
+  isFollowingAuthor?: boolean;
+}
+
+export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange, isFollowingAuthor: initialIsFollowingAuthor }: TweetProps & TweetMenuProps) {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [isLiked, setIsLiked] = useState(initialIsLiked || false);
   const [isReposted, setIsReposted] = useState(initialIsReposted || false);
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked || false);
@@ -37,27 +45,61 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   const [isLiking, setIsLiking] = useState(false);
   const [isReposting, setIsReposting] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);
+  const repostingRef = useRef(false);
+  const likingRef = useRef(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowingAuthor || false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isOwnPost = currentUser?.handle === author.handle;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
+
+  const handleFollowToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isTogglingFollow || !author.id) return;
+    setIsTogglingFollow(true);
+    try {
+      const result = await toggleFollow(author.id);
+      setIsFollowing(result.isFollowing);
+    } catch {
+      // ignore
+    } finally {
+      setIsTogglingFollow(false);
+      setIsMenuOpen(false);
+    }
+  };
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (isLiking) {
-      return;
-    }
+    if (likingRef.current) return;
+    likingRef.current = true;
+    setIsLiking(true);
 
     const nextLiked = !isLiked;
     setIsLiked(nextLiked);
     setLikesCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
 
     try {
-      setIsLiking(true);
       await toggleLike(Number(id));
     } catch (error) {
       console.error('Could not toggle like:', error);
       setIsLiked((prev) => !prev);
       setLikesCount((prev) => (nextLiked ? Math.max(0, prev - 1) : prev + 1));
     } finally {
+      likingRef.current = false;
       setIsLiking(false);
     }
   };
@@ -66,24 +108,22 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
     e.preventDefault();
     e.stopPropagation();
 
-    if (isReposting) {
-      return;
-    }
+    if (repostingRef.current) return;
+    repostingRef.current = true;
+    setIsReposting(true);
 
     const nextReposted = !isReposted;
     setIsReposted(nextReposted);
     setRepostsCount((prev) => (nextReposted ? prev + 1 : Math.max(0, prev - 1)));
 
     try {
-      setIsReposting(true);
-      if (nextReposted) {
-        await retweetTweet(Number(id));
-      }
+      await retweetTweet(Number(id));
     } catch (error) {
       console.error('Could not toggle repost:', error);
       setIsReposted((prev) => !prev);
       setRepostsCount((prev) => (nextReposted ? Math.max(0, prev - 1) : prev + 1));
     } finally {
+      repostingRef.current = false;
       setIsReposting(false);
     }
   };
@@ -167,9 +207,71 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
             <span className="text-text-muted">·</span>
             <span className="text-text-muted hover:underline text-[15px]">{timestamp}</span>
           </div>
-          <button className="text-text-muted hover:text-primary hover:bg-primary/10 p-1.5 rounded-full transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              className="text-text-muted hover:text-primary hover:bg-primary/10 p-1.5 rounded-full transition-colors"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen((prev) => !prev); }}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {isMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 w-64 bg-bg-panel rounded-2xl shadow-xl border border-border z-50 py-2 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {!isOwnPost && (
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold"
+                    onClick={handleFollowToggle}
+                    disabled={isTogglingFollow}
+                  >
+                    {isFollowing ? <UserMinus className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                    {isTogglingFollow ? '...' : (isFollowing ? `Unfollow @${author.handle}` : `Follow @${author.handle}`)}
+                  </button>
+                )}
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(false); navigate(`/tweet/${id}`); }}
+                >
+                  <BarChart className="w-5 h-5" />
+                  View post activity
+                </button>
+                {!isOwnPost && (
+                  <>
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(false); }}
+                    >
+                      <EyeOff className="w-5 h-5" />
+                      Not interested in this post
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(false); }}
+                    >
+                      <VolumeX className="w-5 h-5" />
+                      Mute @{author.handle}
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold text-red-500"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(false); }}
+                    >
+                      <Ban className="w-5 h-5" />
+                      Block @{author.handle}
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold text-red-500"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(false); }}
+                    >
+                      <Flag className="w-5 h-5" />
+                      Report post
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="block mt-1">

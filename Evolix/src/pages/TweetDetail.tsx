@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { ArrowLeft, MessageCircle, Repeat2, Heart, Share, Bookmark, MoreHorizontal, Image as ImageIcon, Smile, ListTodo, Calendar, MapPin } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
@@ -6,7 +6,8 @@ import { toggleBookmark } from '../services/bookmarksApi';
 import { createComment } from '../services/commentsApi';
 import { getCurrentUser, type AuthUser } from '../services/authApi';
 import { getUserProfile } from '../services/usersApi';
-import { getTweetDetail, type TweetDetail as TweetDetailType, type TweetComment } from '../services/tweetsApi';
+import { getTweetDetail, retweetTweet, type TweetDetail as TweetDetailType, type TweetComment } from '../services/tweetsApi';
+import { toggleLike } from '../services/likesApi';
 
 export default function TweetDetail() {
   const navigate = useNavigate();
@@ -20,6 +21,15 @@ export default function TweetDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isReposted, setIsReposted] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [repostsCount, setRepostsCount] = useState(0);
+  const [repliesCount, setRepliesCount] = useState(0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
+  const likingRef = useRef(false);
+  const repostingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -36,6 +46,11 @@ export default function TweetDetail() {
         const response = await getTweetDetail(tweetId, currentUser?.id);
         setTweet(response.tweet);
         setComments(response.tweet.comments ?? []);
+        setIsLiked(response.tweet.isLiked ?? false);
+        setIsReposted(response.tweet.isReposted ?? false);
+        setLikesCount(response.tweet.stats.likes);
+        setRepostsCount(response.tweet.stats.reposts);
+        setRepliesCount(response.tweet.stats.replies);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Could not load tweet detail.');
       } finally {
@@ -86,6 +101,42 @@ export default function TweetDetail() {
     event.target.style.height = `${event.target.scrollHeight}px`;
   };
 
+  const handleLikeToggle = async () => {
+    if (likingRef.current) return;
+    likingRef.current = true;
+    setIsLiking(true);
+    const nextLiked = !isLiked;
+    setIsLiked(nextLiked);
+    setLikesCount((prev) => nextLiked ? prev + 1 : Math.max(0, prev - 1));
+    try {
+      await toggleLike(tweetId);
+    } catch {
+      setIsLiked((prev) => !prev);
+      setLikesCount((prev) => nextLiked ? Math.max(0, prev - 1) : prev + 1);
+    } finally {
+      likingRef.current = false;
+      setIsLiking(false);
+    }
+  };
+
+  const handleRepostToggle = async () => {
+    if (repostingRef.current) return;
+    repostingRef.current = true;
+    setIsReposting(true);
+    const nextReposted = !isReposted;
+    setIsReposted(nextReposted);
+    setRepostsCount((prev) => nextReposted ? prev + 1 : Math.max(0, prev - 1));
+    try {
+      await retweetTweet(tweetId);
+    } catch {
+      setIsReposted((prev) => !prev);
+      setRepostsCount((prev) => nextReposted ? Math.max(0, prev - 1) : prev + 1);
+    } finally {
+      repostingRef.current = false;
+      setIsReposting(false);
+    }
+  };
+
   const refreshComments = async () => {
     if (!Number.isFinite(tweetId)) {
       return;
@@ -97,17 +148,38 @@ export default function TweetDetail() {
   };
 
   const handleReplySubmit = async () => {
-    if (!Number.isFinite(tweetId) || replyText.trim() === '') {
+    if (!Number.isFinite(tweetId) || replyText.trim() === '' || !currentUser) {
       return;
     }
+
+    const trimmedText = replyText.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    const optimisticComment: TweetComment = {
+      id: tempId,
+      author: {
+        id: Number(currentUser.id),
+        name: currentUser.name,
+        handle: currentUser.handle,
+        avatar: currentUserAvatar ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(currentUser.handle)}`,
+      },
+      content: trimmedText,
+      timestamp: '0s',
+    };
+
+    setComments((prev) => [...prev, optimisticComment]);
+    setRepliesCount((prev) => prev + 1);
+    setReplyText('');
 
     try {
       setIsSubmitting(true);
       setErrorMessage('');
-      await createComment(tweetId, replyText.trim());
-      setReplyText('');
+      await createComment(tweetId, trimmedText);
       await refreshComments();
     } catch (error) {
+      setComments((prev) => prev.filter((c) => c.id !== tempId));
+      setRepliesCount((prev) => Math.max(0, prev - 1));
+      setReplyText(trimmedText);
       setErrorMessage(error instanceof Error ? error.message : 'Could not post reply.');
     } finally {
       setIsSubmitting(false);
@@ -194,20 +266,28 @@ export default function TweetDetail() {
               </div>
 
               <div className="border-y border-border py-3 flex gap-6 text-[15px]">
-                <button className="hover:underline"><span className="font-bold text-text-base">{tweet.stats.reposts}</span> <span className="text-text-muted">Reposts</span></button>
-                <button className="hover:underline"><span className="font-bold text-text-base">{tweet.stats.likes}</span> <span className="text-text-muted">Likes</span></button>
-                <button className="hover:underline"><span className="font-bold text-text-base">{tweet.stats.replies}</span> <span className="text-text-muted">Replies</span></button>
+                <button className="hover:underline"><span className="font-bold text-text-base">{repostsCount}</span> <span className="text-text-muted">Reposts</span></button>
+                <button className="hover:underline"><span className="font-bold text-text-base">{likesCount}</span> <span className="text-text-muted">Likes</span></button>
+                <button className="hover:underline"><span className="font-bold text-text-base">{repliesCount}</span> <span className="text-text-muted">Replies</span></button>
               </div>
 
               <div className="flex justify-around items-center py-2 text-text-muted border-b border-border">
                 <button className="p-2 rounded-full hover:bg-primary/10 hover:text-primary transition-colors">
                   <MessageCircle className="w-6 h-6" />
                 </button>
-                <button className="p-2 rounded-full hover:bg-[#00ba7c]/10 hover:text-[#00ba7c] transition-colors">
+                <button
+                  className={`p-2 rounded-full transition-colors ${isReposted ? 'text-[#00ba7c] bg-[#00ba7c]/10' : 'hover:bg-[#00ba7c]/10 hover:text-[#00ba7c]'} ${isReposting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  onClick={handleRepostToggle}
+                  disabled={isReposting}
+                >
                   <Repeat2 className="w-6 h-6" />
                 </button>
-                <button className="p-2 rounded-full hover:bg-[#f91880]/10 hover:text-[#f91880] transition-colors">
-                  <Heart className="w-6 h-6" />
+                <button
+                  className={`p-2 rounded-full transition-colors ${isLiked ? 'text-[#f91880] bg-[#f91880]/10' : 'hover:bg-[#f91880]/10 hover:text-[#f91880]'} ${isLiking ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  onClick={handleLikeToggle}
+                  disabled={isLiking}
+                >
+                  <Heart className={`w-6 h-6 ${isLiked ? 'fill-current' : ''}`} />
                 </button>
                 <button className={`p-2 rounded-full hover:bg-primary/10 hover:text-primary transition-colors ${tweet.isBookmarked ? 'text-primary bg-primary/10' : ''} ${isBookmarking ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleBookmarkToggle} disabled={isBookmarking}>
                   <Bookmark className="w-6 h-6" />
