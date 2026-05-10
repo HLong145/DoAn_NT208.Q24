@@ -16,6 +16,12 @@ export class Comment {
   @Column('text')
   content: string;
 
+  @Column({ nullable: true })
+  parentCommentId: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  mediaUrls: string;
+
   @CreateDateColumn()
   createdAt: Date;
 }
