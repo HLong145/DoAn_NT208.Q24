@@ -32,10 +32,23 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   return payload as T;
 }
 
-export function createComment(tweetId: number, content: string) {
-  return apiRequest<{ message: string; comment: unknown }>(`/comments/${tweetId}`, {
+export function createComment(tweetId: number, content: string, parentCommentId?: number, mediaFiles?: File[]) {
+  const session = getAuthSession();
+  if (!session?.token) return Promise.reject(new Error('Please sign in to continue.'));
+
+  const form = new FormData();
+  form.append('content', content);
+  if (parentCommentId) form.append('parentCommentId', String(parentCommentId));
+  mediaFiles?.forEach((f) => form.append('media', f));
+
+  return fetch(buildApiUrl(`/comments/${tweetId}`), {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    headers: { Authorization: `Bearer ${session.token}` },
+    body: form,
+  }).then(async (res) => {
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.message ?? payload.error ?? 'Request failed.');
+    return payload as { message: string; status: string };
   });
 }
 
