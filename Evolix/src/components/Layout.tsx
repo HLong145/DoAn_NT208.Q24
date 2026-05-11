@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Bell, Mail, User, Users, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
+import { Home, Search, Bell, Mail, User, Users, Bookmark, PenSquare, MoreHorizontal, Settings, Monitor, X, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
@@ -124,6 +124,10 @@ export default function Layout() {
             <NavLink to="/follow" className={({ isActive }) => navLinkClass(isActive)}>
               <Users className="w-7 h-7" strokeWidth={2.2} />
               <span className={navTextClass} style={navTextStyle}>Follow</span>
+            </NavLink>
+            <NavLink to="/bookmarks" className={({ isActive }) => navLinkClass(isActive)}>
+              <Bookmark className="w-7 h-7" strokeWidth={2.2} />
+              <span className={navTextClass} style={navTextStyle}>Bookmarks</span>
             </NavLink>
             <NavLink to="/messages" className={({ isActive }) => navLinkClass(isActive)}>
               <Mail className="w-7 h-7" strokeWidth={2.2} />
