@@ -157,6 +157,32 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
     }
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const tweetUrl = `${window.location.origin}/tweet/${id}`;
+    const shareData = {
+      title: `${author.name} on Evolix`,
+      text: content,
+      url: tweetUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(tweetUrl);
+        window.alert('Link copied to clipboard!');
+      } else {
+        window.prompt('Copy this link to share:', tweetUrl);
+      }
+    } catch (error) {
+      console.error('Could not share tweet:', error);
+      window.alert('Unable to share this post.');
+    }
+  };
+
   const renderContentWithLinks = (text: string) => {
     const parts = text.split(/(@\w+|#\w+)/g);
     return parts.map((part, index) => {
@@ -343,7 +369,7 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
             <button className={`p-2 rounded-full transition-colors ${isBookmarked ? 'text-primary bg-primary/10' : 'hover:text-primary hover:bg-primary/10'} ${isBookmarking ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleBookmark} disabled={isBookmarking}>
               <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
             </button>
-            <button className="p-2 rounded-full hover:text-primary hover:bg-primary/10 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+            <button className="p-2 rounded-full hover:text-primary hover:bg-primary/10 transition-colors" onClick={handleShare}>
               <Share className="w-4 h-4" />
             </button>
           </div>
