@@ -1,4 +1,5 @@
 import { buildApiUrl } from './apiConfig';
+import { resolveAssetUrl } from './apiConfig';
 import { getAuthSession } from './authApi';
 
 export type ConversationThread = {
@@ -73,7 +74,12 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export function getConversationThreads() {
-  return apiRequest<ConversationThread[]>('/messages/threads');
+  return apiRequest<ConversationThread[]>('/messages/threads').then((list) =>
+    list.map((t) => ({
+      ...t,
+      participant: { ...t.participant, avatar: resolveAssetUrl(t.participant.avatar) },
+    })),
+  );
 }
 
 export function createConversation(participantId: number) {
@@ -84,7 +90,13 @@ export function createConversation(participantId: number) {
 }
 
 export function getConversationMessages(threadId: number) {
-  return apiRequest<ConversationMessage[]>(`/messages/threads/${threadId}/messages`);
+  return apiRequest<ConversationMessage[]>(`/messages/threads/${threadId}/messages`).then((list) =>
+    list.map((m) => ({
+      ...m,
+      sender: { ...m.sender, avatar: resolveAssetUrl(m.sender.avatar) },
+      mediaUrl: resolveAssetUrl(m.mediaUrl ?? null) as string | undefined,
+    })),
+  );
 }
 
 export function searchConversationMessages(query: string, scope: 'all' | 'thread' = 'all', threadId?: number) {
@@ -93,7 +105,17 @@ export function searchConversationMessages(query: string, scope: 'all' | 'thread
     params.set('threadId', String(threadId));
   }
 
-  return apiRequest<ConversationMessageSearchResult[]>(`/messages/search?${params.toString()}`);
+  return apiRequest<ConversationMessageSearchResult[]>(`/messages/search?${params.toString()}`).then((list) =>
+    list.map((r) => ({
+      ...r,
+      thread: { ...r.thread, participant: { ...r.thread.participant, avatar: resolveAssetUrl(r.thread.participant.avatar) } },
+      message: {
+        ...r.message,
+        sender: { ...r.message.sender, avatar: resolveAssetUrl(r.message.sender.avatar) },
+        mediaUrl: resolveAssetUrl(r.message.mediaUrl ?? null) as string | undefined,
+      },
+    })),
+  );
 }
 
 export async function sendConversationMessage(threadId: number, content: string, mediaFile?: File) {
@@ -113,5 +135,13 @@ export async function sendConversationMessage(threadId: number, content: string,
   type R = { conversationId: string; message: ConversationMessage } & { error?: string; message?: string };
   const payload = (await response.json().catch(() => ({}))) as R;
   if (!response.ok) throw new Error((payload as { error?: string; message?: string }).message ?? (payload as { error?: string }).error ?? 'Request failed.');
+  // Normalize returned message URLs
+  if (payload && payload.message) {
+    payload.message = {
+      ...payload.message,
+      sender: { ...payload.message.sender, avatar: resolveAssetUrl(payload.message.sender.avatar) },
+      mediaUrl: resolveAssetUrl(payload.message.mediaUrl ?? null) as string | undefined,
+    };
+  }
   return payload;
 }

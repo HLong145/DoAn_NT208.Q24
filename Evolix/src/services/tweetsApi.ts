@@ -1,5 +1,5 @@
 import { getAuthSession } from './authApi';
-import { buildApiUrl } from './apiConfig';
+import { buildApiUrl, resolveAssetUrl } from './apiConfig';
 
 export type TimelineTweet = {
   id: string;
@@ -78,12 +78,24 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export function getTimeline() {
-  return apiRequest<TimelineTweet[]>('/tweets/timeline');
+  return apiRequest<TimelineTweet[]>('/tweets/timeline').then((list) =>
+    list.map((t) => ({
+      ...t,
+      media: t.media?.map((m) => resolveAssetUrl(m)),
+      author: { ...t.author, avatar: resolveAssetUrl(t.author.avatar) },
+    })),
+  );
 }
 
 export function getFeed(scope: 'forYou' | 'following') {
   const queryScope = scope === 'forYou' ? 'for-you' : 'following';
-  return apiRequest<TimelineTweet[]>(`/tweets/feed?scope=${encodeURIComponent(queryScope)}`);
+  return apiRequest<TimelineTweet[]>(`/tweets/feed?scope=${encodeURIComponent(queryScope)}`).then((list) =>
+    list.map((t) => ({
+      ...t,
+      media: t.media?.map((m) => resolveAssetUrl(m)),
+      author: { ...t.author, avatar: resolveAssetUrl(t.author.avatar) },
+    })),
+  );
 }
 
 export function getTrendingTopics() {
@@ -91,7 +103,10 @@ export function getTrendingTopics() {
 }
 
 export function getLeadStory() {
-  return apiRequest<{ title: string; byline?: string; image?: string; tweetId?: number }>('/tweets/lead');
+  return apiRequest<{ title: string; byline?: string; image?: string; tweetId?: number }>('/tweets/lead').then((res) => ({
+    ...res,
+    image: resolveAssetUrl((res as any).image),
+  }));
 }
 
 export function searchTweets(query: string, viewerUserId?: string) {
@@ -109,14 +124,26 @@ export function getTweetsByUser(userId: number, viewerUserId?: string, offset = 
   if (viewerUserId) params.set('viewerUserId', viewerUserId);
   if (offset > 0) params.set('offset', String(offset));
   const qs = params.toString();
-  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${qs ? `?${qs}` : ''}`);
+  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${qs ? `?${qs}` : ''}`).then((list) =>
+    list.map((t) => ({
+      ...t,
+      media: t.media?.map((m) => resolveAssetUrl(m)),
+      author: { ...t.author, avatar: resolveAssetUrl(t.author.avatar) },
+    })),
+  );
 }
 
 export function getLikedTweetsByUser(userId: number, offset = 0) {
   const params = new URLSearchParams();
   if (offset > 0) params.set('offset', String(offset));
   const qs = params.toString();
-  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}/likes${qs ? `?${qs}` : ''}`);
+  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}/likes${qs ? `?${qs}` : ''}`).then((list) =>
+    list.map((t) => ({
+      ...t,
+      media: t.media?.map((m) => resolveAssetUrl(m)),
+      author: { ...t.author, avatar: resolveAssetUrl(t.author.avatar) },
+    })),
+  );
 }
 
 export async function createTweet(content: string, mediaFiles?: File[]) {
@@ -147,5 +174,18 @@ export function retweetTweet(tweetId: number) {
 
 export function getTweetDetail(tweetId: number, viewerUserId?: string) {
   const queryParams = viewerUserId ? `?viewerUserId=${encodeURIComponent(viewerUserId)}` : '';
-  return apiRequest<TweetDetailResponse>(`/tweets/${tweetId}${queryParams}`);
+  return apiRequest<TweetDetailResponse>(`/tweets/${tweetId}${queryParams}`).then((res) => {
+    const t = res.tweet;
+    const tweet: TweetDetail = {
+      ...t,
+      media: t.media?.map((m) => resolveAssetUrl(m)),
+      author: { ...t.author, avatar: resolveAssetUrl(t.author.avatar) },
+      comments: t.comments.map((c) => ({
+        ...c,
+        media: c.media?.map((m) => resolveAssetUrl(m)),
+        author: { ...c.author, avatar: resolveAssetUrl(c.author.avatar) },
+      })),
+    };
+    return { tweet };
+  });
 }
