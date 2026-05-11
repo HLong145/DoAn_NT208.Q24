@@ -43,6 +43,10 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked || false);
   const [likesCount, setLikesCount] = useState(stats.likes);
   const [repostsCount, setRepostsCount] = useState(stats.reposts);
+
+  useEffect(() => {
+    setIsBookmarked(initialIsBookmarked || false);
+  }, [initialIsBookmarked]);
   const [isLiking, setIsLiking] = useState(false);
   const [isReposting, setIsReposting] = useState(false);
   const [isBookmarking, setIsBookmarking] = useState(false);

@@ -23,7 +23,14 @@ export default function Bookmarks() {
         ]);
 
         setCurrentUser(currentUserResponse.user);
-        setBookmarkedTweets(tweets);
+        setBookmarkedTweets(
+          tweets.reduce<TimelineTweet[]>((unique, tweet) => {
+            if (!unique.some((saved) => String(saved.id) === String(tweet.id))) {
+              unique.push(tweet);
+            }
+            return unique;
+          }, []),
+        );
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Could not load bookmarks.');
       } finally {
@@ -65,9 +72,10 @@ export default function Bookmarks() {
               <Tweet
                 key={tweet.id}
                 {...tweet}
+                isBookmarked={true}
                 onBookmarkChange={(tweetId, bookmarked) => {
                   if (!bookmarked) {
-                    setBookmarkedTweets((previousTweets) => previousTweets.filter((savedTweet) => savedTweet.id !== tweetId));
+                    setBookmarkedTweets((previousTweets) => previousTweets.filter((savedTweet) => String(savedTweet.id) !== String(tweetId)));
                   }
                 }}
               />
