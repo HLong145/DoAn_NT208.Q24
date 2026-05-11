@@ -109,6 +109,15 @@ export class TweetsController {
   }
 
   @UseGuards(AuthGuard)
+  @Get('user/:userId/likes')
+  getLikedTweetsByUser(@Request() req, @Param('userId', ParseIntPipe) userId: number, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.tweetsService.getLikedTweetsByUser(userId, req.user.sub, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @UseGuards(AuthGuard)
   @Get(':id')
   getTweetDetail(@Request() req, @Param('id', ParseIntPipe) tweetId: number) {
     return this.tweetsService.getTweetDetail(tweetId, req.user.sub);

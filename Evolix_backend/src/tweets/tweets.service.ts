@@ -332,6 +332,35 @@ export class TweetsService {
     return this.buildTimelineTweets(tweets, viewerUserId);
   }
 
+  async getLikedTweetsByUser(userId: number, viewerUserId?: number, pagination: PaginationOptions = {}): Promise<TimelineTweet[]> {
+    const limit = this.normalizeLimit(pagination.limit, 20, 1, 100);
+    const offset = this.normalizeOffset(pagination.offset);
+
+    const likes = await this.likeRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+      select: ['tweetId'],
+    });
+
+    if (likes.length === 0) {
+      return [];
+    }
+
+    const likedTweetIds = likes.map((like) => like.tweetId);
+    const likedTweets = await this.tweetRepository.find({
+      where: { id: In(likedTweetIds) },
+    });
+
+    const tweetMap = new Map(likedTweets.map((tweet) => [tweet.id, tweet]));
+    const orderedTweets = likedTweetIds
+      .map((tweetId) => tweetMap.get(tweetId))
+      .filter((tweet): tweet is Tweet => Boolean(tweet));
+
+    return this.buildTimelineTweets(orderedTweets, viewerUserId);
+  }
+
   async searchTweets(query: string, viewerUserId?: number, pagination: PaginationOptions = {}): Promise<TimelineTweet[]> {
     const normalizedQuery = query.trim();
     const limit = this.normalizeLimit(pagination.limit, 50, 1, 100);

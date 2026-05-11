@@ -5,7 +5,7 @@ import Tweet from '../components/Tweet';
 import TrendingSidebar from '../components/TrendingSidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { toggleFollow, getFollowingIds } from '../services/followsApi';
-import { getTweetsByUser, type TimelineTweet } from '../services/tweetsApi';
+import { getTweetsByUser, getLikedTweetsByUser, type TimelineTweet } from '../services/tweetsApi';
 import { getUserProfile, updateMyProfile, uploadProfileImage, getFollowers, getFollowing, type UpdateProfilePayload, type UserProfile, type UserSummary } from '../services/usersApi';
 import { getAuthSession, saveAuthSession } from '../services/authApi';
 
@@ -18,9 +18,11 @@ export default function Profile() {
   const { currentUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileTweets, setProfileTweets] = useState<TimelineTweet[]>([]);
+  const [likedTweets, setLikedTweets] = useState<TimelineTweet[]>([]);
   const [activeTab, setActiveTab] = useState<'tweets' | 'replies' | 'following' | 'media' | 'likes'>('tweets');
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingTweets, setIsLoadingTweets] = useState(false);
+  const [isLoadingLikes, setIsLoadingLikes] = useState(false);
   const [isUpdatingFollow, setIsUpdatingFollow] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -35,8 +37,11 @@ export default function Profile() {
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
   const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [hasMoreLikedPosts, setHasMoreLikedPosts] = useState(true);
   const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
+  const [isLoadingMoreLikedPosts, setIsLoadingMoreLikedPosts] = useState(false);
   const postsOffsetRef = useRef(0);
+  const likedPostsOffsetRef = useRef(0);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const POSTS_PAGE_SIZE = 20;
 
@@ -185,6 +190,33 @@ export default function Profile() {
     void loadProfileTweets();
   }, [profile?.user.id]);
 
+  useEffect(() => {
+    if (activeTab !== 'likes') return;
+    if (!profile?.user.id) {
+      setLikedTweets([]);
+      return;
+    }
+
+    const loadLikedTweets = async () => {
+      likedPostsOffsetRef.current = 0;
+      setHasMoreLikedPosts(true);
+      try {
+        setIsLoadingLikes(true);
+        const tweets = await getLikedTweetsByUser(profile.user.id, 0);
+        setLikedTweets(tweets);
+        likedPostsOffsetRef.current = tweets.length;
+        if (tweets.length < POSTS_PAGE_SIZE) setHasMoreLikedPosts(false);
+      } catch (error) {
+        console.error('Could not load liked tweets:', error);
+        setLikedTweets([]);
+      } finally {
+        setIsLoadingLikes(false);
+      }
+    };
+
+    void loadLikedTweets();
+  }, [activeTab, profile?.user.id]);
+
   const loadMorePosts = async () => {
     if (!profile?.user.id || isLoadingMorePosts || !hasMorePosts) return;
     setIsLoadingMorePosts(true);
@@ -200,17 +232,39 @@ export default function Profile() {
     }
   };
 
+  const loadMoreLikedPosts = async () => {
+    if (!profile?.user.id || isLoadingMoreLikedPosts || !hasMoreLikedPosts) return;
+    setIsLoadingMoreLikedPosts(true);
+    try {
+      const more = await getLikedTweetsByUser(profile.user.id, likedPostsOffsetRef.current);
+      setLikedTweets((prev) => [...prev, ...more]);
+      likedPostsOffsetRef.current += more.length;
+      if (more.length < POSTS_PAGE_SIZE) setHasMoreLikedPosts(false);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingMoreLikedPosts(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab !== 'tweets') return;
+    if (activeTab !== 'tweets' && activeTab !== 'likes') return;
     const sentinel = loadMoreSentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0]?.isIntersecting) void loadMorePosts(); },
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (activeTab === 'tweets') {
+          void loadMorePosts();
+        } else if (activeTab === 'likes') {
+          void loadMoreLikedPosts();
+        }
+      },
       { rootMargin: '200px' },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [activeTab, hasMorePosts, isLoadingMorePosts, profile?.user.id]);
+  }, [activeTab, hasMorePosts, hasMoreLikedPosts, isLoadingMorePosts, isLoadingMoreLikedPosts, profile?.user.id]);
 
   const isOwnProfile = Boolean(currentUser?.handle && profile?.user.handle === currentUser.handle);
 
@@ -561,6 +615,30 @@ export default function Profile() {
                     <p>No posts yet.</p>
                   </div>
                 )
+              ) : activeTab === 'likes' ? (
+                isLoadingLikes ? (
+                  <div className="p-8 text-center text-text-muted">Loading likes...</div>
+                ) : likedTweets.length > 0 ? (
+                  likedTweets.map((tweet) => (
+                    <div key={tweet.id}>
+                      <Tweet
+                        id={tweet.id}
+                        author={tweet.author}
+                        content={tweet.content}
+                        timestamp={tweet.timestamp}
+                        stats={tweet.stats}
+                        isLiked={tweet.isLiked}
+                        isReposted={tweet.isReposted}
+                        media={tweet.media}
+                        isBookmarked={tweet.isBookmarked}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-text-muted">
+                    <p>No liked posts yet.</p>
+                  </div>
+                )
               ) : activeTab === 'media' ? (
                 isLoadingTweets ? (
                   <div className="p-8 text-center text-text-muted">Loading media...</div>
@@ -601,9 +679,11 @@ export default function Profile() {
                   <p>Nothing to see here yet.</p>
                 </div>
               )}
-              {activeTab === 'tweets' && (
+              {(activeTab === 'tweets' || activeTab === 'likes') && (
                 <div ref={loadMoreSentinelRef} className="py-2 text-center text-sm text-text-muted">
-                  {isLoadingMorePosts ? 'Loading more...' : (!hasMorePosts && profileTweets.length > 0 ? "You're all caught up" : '')}
+                  {activeTab === 'tweets'
+                    ? (isLoadingMorePosts ? 'Loading more...' : (!hasMorePosts && profileTweets.length > 0 ? "You're all caught up" : ''))
+                    : (isLoadingMoreLikedPosts ? 'Loading more...' : (!hasMoreLikedPosts && likedTweets.length > 0 ? "You're all caught up" : ''))}
                 </div>
               )}
             </div>

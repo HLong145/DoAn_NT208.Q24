@@ -32,7 +32,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export function toggleLike(tweetId: number) {
-  return apiRequest<{ message: string; status: string }>(`/likes/${tweetId}`, {
+  return apiRequest<{ message: string; liked: boolean }>(`/likes/${tweetId}`, {
     method: 'POST',
   });
 }

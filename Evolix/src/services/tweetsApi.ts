@@ -112,6 +112,13 @@ export function getTweetsByUser(userId: number, viewerUserId?: string, offset = 
   return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}${qs ? `?${qs}` : ''}`);
 }
 
+export function getLikedTweetsByUser(userId: number, offset = 0) {
+  const params = new URLSearchParams();
+  if (offset > 0) params.set('offset', String(offset));
+  const qs = params.toString();
+  return apiRequest<TimelineTweet[]>(`/tweets/user/${userId}/likes${qs ? `?${qs}` : ''}`);
+}
+
 export async function createTweet(content: string, mediaFiles?: File[]) {
   const session = getAuthSession();
   if (!session?.token) throw new Error('Please sign in to continue.');

@@ -45,6 +45,19 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   const [repostsCount, setRepostsCount] = useState(stats.reposts);
 
   useEffect(() => {
+    setIsLiked(initialIsLiked || false);
+  }, [initialIsLiked]);
+
+  useEffect(() => {
+    setIsReposted(initialIsReposted || false);
+  }, [initialIsReposted]);
+
+  useEffect(() => {
+    setLikesCount(stats.likes);
+    setRepostsCount(stats.reposts);
+  }, [stats.likes, stats.reposts]);
+
+  useEffect(() => {
     setIsBookmarked(initialIsBookmarked || false);
   }, [initialIsBookmarked]);
   const [isLiking, setIsLiking] = useState(false);
@@ -57,6 +70,9 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    setIsFollowing(initialIsFollowingAuthor || false);
+  }, [initialIsFollowingAuthor]);
   const isOwnPost = currentUser?.handle === author.handle;
 
   useEffect(() => {
@@ -98,7 +114,12 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
     setLikesCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
 
     try {
-      await toggleLike(Number(id));
+      const response = await toggleLike(Number(id));
+      if (response.liked !== nextLiked) {
+        const finalLiked = response.liked;
+        setIsLiked(finalLiked);
+        setLikesCount((prev) => (finalLiked ? prev + 1 : Math.max(0, prev - 1)));
+      }
     } catch (error) {
       console.error('Could not toggle like:', error);
       setIsLiked((prev) => !prev);
@@ -336,7 +357,7 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
           )}
         </div>
 
-        <div className="flex justify-between items-center mt-2 text-text-muted max-w-[430px]">
+        <div className="flex flex-wrap items-center gap-2 mt-2 text-text-muted">
           <button className="flex items-center gap-1.5 group hover:text-primary transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/tweet/${id}`); }}>
             <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
               <MessageCircle className="w-4 h-4" />
