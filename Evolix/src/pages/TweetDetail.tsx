@@ -19,7 +19,9 @@ export default function TweetDetail() {
   const [replyText, setReplyText] = useState('');
   const [tweet, setTweet] = useState<TweetDetailType | null>(null);
   const [comments, setComments] = useState<TweetComment[]>([]);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | undefined>(undefined);
+  const currentUserLoadedRef = useRef(false);
+  const detailLoadedRef = useRef<{ tweetId: number; userId: number | null | undefined } | null>(null);
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -420,8 +420,10 @@ export class TweetsService {
         : Promise.resolve(null),
     ]);
 
-    // Increment view count (fire-and-forget, don't block response)
-    this.tweetRepository.increment({ id: tweetId }, 'viewCount', 1).catch(() => {});
+    const shouldCountView = viewerUserId ? await this.shouldIncrementViewCount(viewerUserId, tweetId) : true;
+    if (shouldCountView) {
+      this.tweetRepository.increment({ id: tweetId }, 'viewCount', 1).catch(() => {});
+    }
 
     return {
       tweet: {
@@ -637,6 +639,17 @@ export class TweetsService {
     }
 
     return Math.max(0, Math.floor(value ?? 0));
+  }
+
+  private async shouldIncrementViewCount(userId: number, tweetId: number): Promise<boolean> {
+    const cacheKey = `tweet_viewed_${userId}_${tweetId}`;
+    const alreadyViewed = await this.cacheManager.get<boolean>(cacheKey);
+    if (alreadyViewed) {
+      return false;
+    }
+
+    await this.cacheManager.set(cacheKey, true, 60);
+    return true;
   }
 
   private formatRelativeTime(createdAt: Date) {
