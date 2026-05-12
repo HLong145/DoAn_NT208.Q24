@@ -19,9 +19,9 @@ export default function TweetDetail() {
   const [replyText, setReplyText] = useState('');
   const [tweet, setTweet] = useState<TweetDetailType | null>(null);
   const [comments, setComments] = useState<TweetComment[]>([]);
-  const [currentUser, setCurrentUser] = useState<AuthUser | undefined>(undefined);
-  const currentUserLoadedRef = useRef(false);
-  const detailLoadedRef = useRef<{ tweetId: number; userId: number | null | undefined } | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(undefined);
+  const detailLoadedRef = useRef<{ tweetId: number; userId: string | null | undefined } | null>(null);
+  const isLoadingDetailRef = useRef(false);
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,9 +56,18 @@ export default function TweetDetail() {
       }
 
       const currentUserId = currentUser?.id;
-      if (detailLoadedRef.current?.tweetId === tweetId && detailLoadedRef.current?.userId === currentUserId) {
+      if (
+        detailLoadedRef.current?.tweetId === tweetId &&
+        detailLoadedRef.current?.userId === currentUserId
+      ) {
         return;
       }
+
+      detailLoadedRef.current = { tweetId, userId: currentUserId };
+      if (isLoadingDetailRef.current) {
+        return;
+      }
+      isLoadingDetailRef.current = true;
 
       try {
         setErrorMessage('');
@@ -71,15 +80,15 @@ export default function TweetDetail() {
         setLikesCount(response.tweet.stats.likes);
         setRepostsCount(response.tweet.stats.reposts);
         setRepliesCount(response.tweet.stats.replies);
-        detailLoadedRef.current = { tweetId, userId: currentUserId };
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Could not load tweet detail.');
       } finally {
+        isLoadingDetailRef.current = false;
         setIsLoading(false);
       }
     };
 
-    if (currentUser !== undefined) {
+    if (currentUser !== undefined && currentUser !== null) {
       void loadTweetDetail();
     }
   }, [tweetId, currentUser]);
