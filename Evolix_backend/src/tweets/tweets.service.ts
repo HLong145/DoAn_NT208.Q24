@@ -348,7 +348,7 @@ export class TweetsService {
       return [];
     }
 
-    const likedTweetIds = likes.map((like) => like.tweetId);
+    const likedTweetIds = Array.from(new Set(likes.map((like) => like.tweetId)));
     const likedTweets = await this.tweetRepository.find({
       where: { id: In(likedTweetIds) },
     });
@@ -358,7 +358,18 @@ export class TweetsService {
       .map((tweetId) => tweetMap.get(tweetId))
       .filter((tweet): tweet is Tweet => Boolean(tweet));
 
-    return this.buildTimelineTweets(orderedTweets, viewerUserId);
+    const likedTimeline = await this.buildTimelineTweets(orderedTweets, viewerUserId);
+    const seenIds = new Set<string>();
+    const uniqueLikedTimeline: TimelineTweet[] = [];
+
+    for (const tweet of likedTimeline) {
+      if (!seenIds.has(tweet.id)) {
+        seenIds.add(tweet.id);
+        uniqueLikedTimeline.push(tweet);
+      }
+    }
+
+    return uniqueLikedTimeline;
   }
 
   async searchTweets(query: string, viewerUserId?: number, pagination: PaginationOptions = {}): Promise<TimelineTweet[]> {

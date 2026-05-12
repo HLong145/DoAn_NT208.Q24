@@ -42,6 +42,8 @@ export default function Profile() {
   const [isLoadingMoreLikedPosts, setIsLoadingMoreLikedPosts] = useState(false);
   const postsOffsetRef = useRef(0);
   const likedPostsOffsetRef = useRef(0);
+  const isLoadingLikesRef = useRef(false);
+  const hasLoadedLikedPageRef = useRef(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const POSTS_PAGE_SIZE = 20;
 
@@ -199,17 +201,22 @@ export default function Profile() {
 
     const loadLikedTweets = async () => {
       likedPostsOffsetRef.current = 0;
+      hasLoadedLikedPageRef.current = false;
       setHasMoreLikedPosts(true);
       try {
+        isLoadingLikesRef.current = true;
         setIsLoadingLikes(true);
         const tweets = await getLikedTweetsByUser(profile.user.id, 0);
         setLikedTweets(tweets);
         likedPostsOffsetRef.current = tweets.length;
         if (tweets.length < POSTS_PAGE_SIZE) setHasMoreLikedPosts(false);
+        hasLoadedLikedPageRef.current = true;
       } catch (error) {
         console.error('Could not load liked tweets:', error);
         setLikedTweets([]);
+        hasLoadedLikedPageRef.current = true;
       } finally {
+        isLoadingLikesRef.current = false;
         setIsLoadingLikes(false);
       }
     };
@@ -233,7 +240,13 @@ export default function Profile() {
   };
 
   const loadMoreLikedPosts = async () => {
-    if (!profile?.user.id || isLoadingMoreLikedPosts || !hasMoreLikedPosts) return;
+    if (
+      !profile?.user.id ||
+      isLoadingMoreLikedPosts ||
+      isLoadingLikesRef.current ||
+      !hasMoreLikedPosts ||
+      (likedPostsOffsetRef.current === 0 && !hasLoadedLikedPageRef.current)
+    ) return;
     setIsLoadingMoreLikedPosts(true);
     try {
       const more = await getLikedTweetsByUser(profile.user.id, likedPostsOffsetRef.current);
@@ -256,7 +269,11 @@ export default function Profile() {
         if (!entries[0]?.isIntersecting) return;
         if (activeTab === 'tweets') {
           void loadMorePosts();
-        } else if (activeTab === 'likes') {
+        } else if (
+          activeTab === 'likes' &&
+          !isLoadingLikesRef.current &&
+          !isLoadingMoreLikedPosts
+        ) {
           void loadMoreLikedPosts();
         }
       },
