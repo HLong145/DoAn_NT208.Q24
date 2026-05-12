@@ -55,10 +55,15 @@ export default function TweetDetail() {
         return;
       }
 
+      const currentUserId = currentUser?.id;
+      if (detailLoadedRef.current?.tweetId === tweetId && detailLoadedRef.current?.userId === currentUserId) {
+        return;
+      }
+
       try {
         setErrorMessage('');
         setIsLoading(true);
-        const response = await getTweetDetail(tweetId, currentUser?.id);
+        const response = await getTweetDetail(tweetId, currentUserId);
         setTweet(response.tweet);
         setComments(response.tweet.comments ?? []);
         setIsLiked(response.tweet.isLiked ?? false);
@@ -66,6 +71,7 @@ export default function TweetDetail() {
         setLikesCount(response.tweet.stats.likes);
         setRepostsCount(response.tweet.stats.reposts);
         setRepliesCount(response.tweet.stats.replies);
+        detailLoadedRef.current = { tweetId, userId: currentUserId };
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : 'Could not load tweet detail.');
       } finally {
@@ -73,8 +79,10 @@ export default function TweetDetail() {
       }
     };
 
-    void loadTweetDetail();
-  }, [tweetId, currentUser?.id]);
+    if (currentUser !== undefined) {
+      void loadTweetDetail();
+    }
+  }, [tweetId, currentUser]);
 
   useEffect(() => {
     const loadCurrentUser = async () => {
