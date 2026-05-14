@@ -50,23 +50,27 @@ services:
       - redis
       - kafka
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
       PORT: 4001
-      DB_HOST: host.docker.internal
-      DB_PORT: 3307
+      DB_HOST: mysql
+      DB_PORT: 3306
       DB_USER: yuwkaa
       DB_PASSWORD: yuwkaapassword
       DB_NAME: evolix_db
-      REDIS_HOST: host.docker.internal
-      REDIS_PORT: 6380
-      KAFKA_BROKERS: host.docker.internal:9093
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BROKERS: kafka:9092
       CORS_ORIGINS: http://localhost:3000,http://localhost:5173
       JWT_SECRET: nguoiyeucuayuuka
     ports:
       - "4001:4001"
     command: ["sh", "-c", "node /app/wait-for-services.mjs && npm run start:prod"]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4001/api').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
 
   frontend:
     build:
@@ -79,6 +83,26 @@ services:
     ports:
       - "3000:3000"
     command: ["npm", "run", "dev"]
+
+  benchmark:
+    image: grafana/k6:latest
+    profiles:
+      - benchmark
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      TOKEN: ${TOKEN}
+      BASE_URL: http://backend:4001
+      API_PREFIX: /api
+      VUS: 100
+      DURATION: 30s
+      INCLUDE_FOR_YOU: "true"
+    volumes:
+      - ./Evolix_backend/load-test.js:/scripts/load-test.js:ro
+    working_dir: /scripts
+    entrypoint: ["k6"]
+    command: ["run", "--vus", "100", "--duration", "30s", "load-test.js"]
 
 volumes:
   mysql_data:

@@ -146,12 +146,14 @@ export function getLikedTweetsByUser(userId: number, offset = 0) {
   );
 }
 
-export async function createTweet(content: string, mediaFiles?: File[]) {
+export async function createTweet(content: string | undefined, mediaFiles?: File[]) {
   const session = getAuthSession();
   if (!session?.token) throw new Error('Please sign in to continue.');
 
   const form = new FormData();
-  form.append('content', content);
+  if (content) {
+    form.append('content', content);
+  }
   mediaFiles?.forEach((f) => form.append('media', f));
 
   const response = await fetch(buildApiUrl('/tweets'), {

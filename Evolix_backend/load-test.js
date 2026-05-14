@@ -1,60 +1,78 @@
 /**
- * k6 load test — simulates 100 concurrent users hammering the feed endpoint
- * Install k6: https://k6.io/docs/getting-started/installation/
- * Run: k6 run load-test.js
+ * k6 benchmark for Evolix feed endpoints.
  *
- * What this tests:
- *   - GET /tweets/feed  (personal feed — hits Redis cache + DB)
- *   - GET /tweets/feed?scope=for-you  (explore feed)
- *   - POST /tweets  (write path — invalidates cache)
+ * Run locally against a running backend:
+ *   k6 run -e TOKEN=<jwt> -e BASE_URL=http://localhost:4001 -e API_PREFIX=/api --vus 100 --duration 30s load-test.js
+ *
+ * Run via docker compose benchmark service:
+ *   docker compose run --rm benchmark
  */
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend, Rate } from 'k6/metrics';
+import { Rate, Trend } from 'k6/metrics';
 
-// ── Config ─────────────────────────────────────────────────────────────────
-const BASE_URL = 'http://localhost:4001';
+const BASE_URL = (__ENV.BASE_URL || 'http://localhost:4001').replace(/\/$/, '');
+const API_PREFIX = (__ENV.API_PREFIX || '/api').replace(/^\/+|\/+$/g, '');
+const TOKEN = __ENV.TOKEN || '';
+const VUS = Number(__ENV.VUS || 100);
+const DURATION = __ENV.DURATION || '30s';
+const LIMIT = Number(__ENV.LIMIT || 20);
+const INCLUDE_FOR_YOU = (__ENV.INCLUDE_FOR_YOU || 'true').toLowerCase() === 'true';
+const FEED_BUDGET_MS = Number(__ENV.FEED_BUDGET_MS || 500);
 
-// Paste a valid JWT token from your browser (DevTools → Application → localStorage)
-// Or create a test account and log in once to get a token.
-const TEST_TOKEN = __ENV.TOKEN || 'PASTE_JWT_HERE';
+if (!TOKEN) {
+  throw new Error('Missing TOKEN. Pass -e TOKEN=<jwt>');
+}
+
+const apiBaseUrl = API_PREFIX ? `${BASE_URL}/${API_PREFIX}` : BASE_URL;
 
 export const options = {
-  stages: [
-    { duration: '10s', target: 20  },  // ramp up to 20 VUs
-    { duration: '30s', target: 100 },  // hold 100 concurrent users
-    { duration: '10s', target: 0   },  // ramp down
-  ],
+  scenarios: {
+    benchmark: {
+      executor: 'constant-vus',
+      vus: VUS,
+      duration: DURATION,
+      gracefulStop: '10s',
+    },
+  },
   thresholds: {
-    http_req_duration: ['p(95)<500'],  // 95% of requests must be < 500ms
-    http_req_failed:   ['rate<0.01'],  // less than 1% errors
+    http_req_duration: [`p(95)<${FEED_BUDGET_MS}`],
+    http_req_failed: ['rate<0.01'],
   },
 };
 
-const feedLatency = new Trend('feed_latency');
-const errorRate   = new Rate('feed_errors');
+const feedLatency = new Trend('feed_latency', true);
+const feedErrors = new Rate('feed_errors');
 
 const HEADERS = {
+  Authorization: `Bearer ${TOKEN}`,
   'Content-Type': 'application/json',
-  'Authorization': `Bearer ${TEST_TOKEN}`,
 };
 
-export default function () {
-  // 1. Following feed (most common — should hit Redis cache)
-  const r1 = http.get(`${BASE_URL}/tweets/feed`, { headers: HEADERS });
-  feedLatency.add(r1.timings.duration);
-  const ok1 = check(r1, {
-    'feed 200': (r) => r.status === 200,
-    'feed < 500ms': (r) => r.timings.duration < 500,
+function requestFeed(scope) {
+  const query = `scope=${encodeURIComponent(scope)}&limit=${LIMIT}&offset=0`;
+  const response = http.get(`${apiBaseUrl}/tweets/feed?${query}`, {
+    headers: HEADERS,
+    tags: { endpoint: 'feed', scope },
   });
-  errorRate.add(!ok1);
 
-  sleep(0.5);
+  const ok = check(response, {
+    [`${scope} feed returns 200`]: (r) => r.status === 200,
+    [`${scope} feed is below ${FEED_BUDGET_MS}ms`]: (r) => r.timings.duration < FEED_BUDGET_MS,
+  });
 
-  // 2. For-you feed
-  const r2 = http.get(`${BASE_URL}/tweets/feed?scope=for-you`, { headers: HEADERS });
-  check(r2, { 'for-you 200': (r) => r.status === 200 });
+  feedLatency.add(response.timings.duration, { scope });
+  feedErrors.add(!ok, { scope });
+}
+
+export default function () {
+  requestFeed('following');
+
+  if (INCLUDE_FOR_YOU) {
+    sleep(0.2);
+    requestFeed('for-you');
+  }
 
   sleep(1);
 }

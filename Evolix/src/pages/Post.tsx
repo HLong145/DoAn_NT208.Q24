@@ -1,4 +1,4 @@
-import { type FormEvent, useRef, useState } from 'react';
+import { type FormEvent, useRef, useState, useEffect } from 'react';
 import { Image as ImageIcon, Smile, ListTodo, Calendar, MapPin, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { createTweet } from '../services/tweetsApi';
@@ -10,6 +10,7 @@ export default function Post() {
   const [content, setContent] = useState('');
   const [location, setLocation] = useState('');
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showScheduleInput, setShowScheduleInput] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
@@ -20,7 +21,14 @@ export default function Post() {
   const maxChars = 280;
   const charsLeft = maxChars - content.length;
 
+  useEffect(() => {
+    return () => {
+      mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [mediaPreviews]);
+
   const handleCancel = () => {
+    mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
     if (window.history.length > 1) {
       navigate(-1);
       return;
@@ -31,15 +39,17 @@ export default function Post() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmedContent = content.trim();
-    if (!trimmedContent) return;
+    if (!trimmedContent && mediaFiles.length === 0) return;
 
     const trimmedLocation = location.trim();
-    const finalContent = trimmedLocation ? `${trimmedContent}\n\n📍 ${trimmedLocation}` : trimmedContent;
+    const finalContent = trimmedContent || '';
+    const contentWithLocation = trimmedLocation ? `${finalContent}\n\n📍 ${trimmedLocation}`.trim() : finalContent;
 
     try {
       setIsSubmitting(true);
       setErrorMessage('');
-      await createTweet(finalContent, mediaFiles.length > 0 ? mediaFiles : undefined);
+      await createTweet(contentWithLocation || undefined, mediaFiles.length > 0 ? mediaFiles : undefined);
+      mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
       navigate('/', { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not publish tweet.');
@@ -55,11 +65,16 @@ export default function Post() {
     }
 
     setMediaFiles((prev) => [...prev, ...selectedFiles]);
+    setMediaPreviews((prev) => [...prev, ...selectedFiles.map((f) => URL.createObjectURL(f))]);
     e.target.value = '';
   };
 
   const removeMedia = (targetIndex: number) => {
     setMediaFiles((prev) => prev.filter((_, index) => index !== targetIndex));
+    setMediaPreviews((prev) => {
+      URL.revokeObjectURL(prev[targetIndex]);
+      return prev.filter((_, index) => index !== targetIndex);
+    });
   };
 
   const addQuickEmoji = (emoji: string) => {
@@ -112,17 +127,17 @@ export default function Post() {
           />
 
           {mediaFiles.length > 0 ? (
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {mediaFiles.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="rounded-xl border border-border bg-bg-base px-3 py-2 flex items-center justify-between gap-2">
-                  <span className="text-sm truncate text-text-muted">{file.name}</span>
+            <div className={`mt-4 grid gap-2 ${mediaPreviews.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {mediaPreviews.map((src, index) => (
+                <div key={`${index}`} className="relative rounded-2xl overflow-hidden aspect-video bg-border/30">
+                  <img src={src} alt="" className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeMedia(index)}
-                    className="rounded-full p-1.5 hover:bg-border/50 transition-colors"
-                    aria-label={`Remove ${file.name}`}
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                    aria-label={`Remove image`}
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               ))}
@@ -213,8 +228,8 @@ export default function Post() {
               <span className={`text-sm ${charsLeft <= 20 ? 'text-[#ff3b30]' : 'text-text-muted'}`}>{charsLeft}</span>
               <button
                 type="submit"
-                disabled={!content.trim() || isSubmitting}
-                className={`rounded-full px-6 py-2.5 font-bold text-white transition-colors ${content.trim() && !isSubmitting ? 'bg-primary hover:bg-primary-hover' : 'bg-primary/50 cursor-not-allowed'}`}
+                disabled={(!content.trim() && mediaFiles.length === 0) || isSubmitting}
+                className={`rounded-full px-6 py-2.5 font-bold text-white transition-colors ${(content.trim() || mediaFiles.length > 0) && !isSubmitting ? 'bg-primary hover:bg-primary-hover' : 'bg-primary/50 cursor-not-allowed'}`}
               >
                 {isSubmitting ? 'Posting...' : 'Post'}
               </button>

@@ -9,6 +9,7 @@ export default function Follow() {
   const [suggestions, setSuggestions] = useState<UserSummary[]>([]);
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
+  const [hoveredFollowId, setHoveredFollowId] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -97,9 +98,18 @@ export default function Follow() {
                   <button
                     onClick={() => void handleFollow(user.id)}
                     disabled={followingInProgress.has(user.id)}
+                    onMouseEnter={() => { if (followingIds.has(user.id)) setHoveredFollowId(user.id); }}
+                    onMouseLeave={() => { if (hoveredFollowId === user.id) setHoveredFollowId(null); }}
+                    onFocus={() => { if (followingIds.has(user.id)) setHoveredFollowId(user.id); }}
+                    onBlur={() => { if (hoveredFollowId === user.id) setHoveredFollowId(null); }}
                     className={`px-5 py-1.5 rounded-full text-[15px] font-bold transition-colors disabled:opacity-50 ${followingIds.has(user.id) ? 'bg-transparent border border-border text-text-base hover:border-red-400 hover:text-red-400' : 'bg-text-base text-bg-base hover:opacity-80'}`}
                   >
-                    {followingInProgress.has(user.id) ? '...' : followingIds.has(user.id) ? 'Following' : 'Follow'}
+                    {followingInProgress.has(user.id)
+                      ? '...'
+                      : followingIds.has(user.id)
+                      ? (hoveredFollowId === user.id ? 'Unfollow' : 'Following')
+                      : 'Follow'
+                    }
                   </button>
                   <button className="text-text-muted p-1 rounded-full hover:bg-border/50">
                     <MoreHorizontal className="w-4 h-4" />

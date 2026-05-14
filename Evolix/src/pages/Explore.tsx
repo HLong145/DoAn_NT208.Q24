@@ -3,7 +3,7 @@ import { Search, TrendingUp, Users, MoreHorizontal, X, ArrowLeft } from 'lucide-
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
 import Tweet from '../components/Tweet';
-import { searchTweets, type TimelineTweet } from '../services/tweetsApi';
+import { searchTweets, type TimelineTweet, getTimeline } from '../services/tweetsApi';
 import { searchUsers, type UserSummary } from '../services/usersApi';
 
 type ExploreSuggestion =
@@ -29,6 +29,10 @@ export default function Explore() {
   const [tweetResults, setTweetResults] = useState<TimelineTweet[]>([]);
   const [userResults, setUserResults] = useState<UserSummary[]>([]);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [topTweets, setTopTweets] = useState<TimelineTweet[]>([]);
+  const [latestTweets, setLatestTweets] = useState<TimelineTweet[]>([]);
+  const [mediaTweets, setMediaTweets] = useState<TimelineTweet[]>([]);
+  const [isLoadingTabs, setIsLoadingTabs] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   const [trendingTopics, setTrendingTopics] = useState<Array<{ topic: string; posts: string }>>([]);
@@ -69,6 +73,39 @@ export default function Explore() {
 
     void loadResults();
   }, [searchQuery]);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        setIsLoadingTabs(true);
+        const api = await import('../services/tweetsApi');
+        const tweets = await api.getTimeline();
+        
+        if (!mounted) return;
+        
+        // Top tweets: sắp xếp theo likes giảm dần
+        const topSorted = [...tweets].sort((a, b) => b.stats.likes - a.stats.likes);
+        
+        // Latest tweets: sắp xếp theo timestamp giảm dần
+        const latestSorted = [...tweets].sort((a, b) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        
+        // Media tweets: chỉ lấy tweets có media
+        const mediaTweetsOnly = tweets.filter(t => t.media && t.media.length > 0);
+        
+        setTopTweets(topSorted);
+        setLatestTweets(latestSorted);
+        setMediaTweets(mediaTweetsOnly);
+      } catch (err) {
+        console.error('Could not load explore tabs:', err);
+      } finally {
+        setIsLoadingTabs(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -303,7 +340,7 @@ export default function Explore() {
               </div>
             </div>
 
-            <div className="p-4">
+            <div className="p-4 border-b border-border">
               <h2 className="text-xl font-bold mb-4">Trending Now</h2>
               <div className="space-y-4">
                 {trendingTopics.length > 0 ? (
@@ -331,7 +368,82 @@ export default function Explore() {
                 )}
               </div>
             </div>
+
+            <div className="divide-y divide-border">
+              {isLoadingTabs ? (
+                <div className="p-8 text-center text-text-muted">Loading top tweets...</div>
+              ) : topTweets.length > 0 ? (
+                topTweets.map(tweet => (
+                  <div key={tweet.id}>
+                    <Tweet 
+                      id={tweet.id}
+                      author={tweet.author}
+                      content={tweet.content}
+                      timestamp={tweet.timestamp}
+                      stats={tweet.stats}
+                      isLiked={tweet.isLiked}
+                      media={tweet.media}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-text-muted">
+                  <p className="text-xl font-bold text-text-base mb-2">No top tweets</p>
+                  <p>Be the first to post something.</p>
+                </div>
+              )}
+            </div>
           </>
+        ) : activeTab === 'latest' ? (
+          <div className="divide-y divide-border">
+            {isLoadingTabs ? (
+              <div className="p-8 text-center text-text-muted">Loading latest tweets...</div>
+            ) : latestTweets.length > 0 ? (
+              latestTweets.map(tweet => (
+                <div key={tweet.id}>
+                  <Tweet 
+                    id={tweet.id}
+                    author={tweet.author}
+                    content={tweet.content}
+                    timestamp={tweet.timestamp}
+                    stats={tweet.stats}
+                    isLiked={tweet.isLiked}
+                    media={tweet.media}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-text-muted">
+                <p className="text-xl font-bold text-text-base mb-2">No latest tweets</p>
+                <p>Check back later for new posts.</p>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'media' ? (
+          <div className="divide-y divide-border">
+            {isLoadingTabs ? (
+              <div className="p-8 text-center text-text-muted">Loading media tweets...</div>
+            ) : mediaTweets.length > 0 ? (
+              mediaTweets.map(tweet => (
+                <div key={tweet.id}>
+                  <Tweet 
+                    id={tweet.id}
+                    author={tweet.author}
+                    content={tweet.content}
+                    timestamp={tweet.timestamp}
+                    stats={tweet.stats}
+                    isLiked={tweet.isLiked}
+                    media={tweet.media}
+                  />
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-text-muted">
+                <p className="text-xl font-bold text-text-base mb-2">No media tweets</p>
+                <p>There are no tweets with images or videos available.</p>
+              </div>
+            )}
+          </div>
         ) : activeTab === 'people' ? (
           <div className="divide-y divide-border">
                 {userResults.length > 0 ? userResults.map((user) => (
@@ -357,11 +469,7 @@ export default function Explore() {
               </div>
             )}
           </div>
-        ) : (
-          <div className="p-8 text-center text-text-muted">
-            <p>Media search is coming next.</p>
-          </div>
-        )}
+        ) : null}
       </main>
 
       <TrendingSidebar hideSearch={true} />
