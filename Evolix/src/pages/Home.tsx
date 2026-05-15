@@ -7,6 +7,8 @@ import { createRealtimeSocket } from '../services/realtimeClient';
 import { getCurrentUser, type AuthUser } from '../services/authApi';
 import { getUserProfile } from '../services/usersApi';
 
+const FEED_PAGE_SIZE = 20;
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'forYou' | 'following'>('forYou');
   const [tweetText, setTweetText] = useState('');
@@ -23,9 +25,15 @@ export default function Home() {
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
 
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeTabRef = useRef(activeTab);
+  const offsetRef = useRef(0);
+  const hasMoreRef = useRef(true);
+  const isLoadingMoreRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const maxChars = 280;
   const charsLeft = maxChars - tweetText.length;
 
@@ -50,8 +58,12 @@ export default function Home() {
     try {
       setErrorMessage('');
       setIsLoading(true);
-      const feed = await getFeed(scope);
+      offsetRef.current = 0;
+      hasMoreRef.current = true;
+      const feed = await getFeed(scope, { limit: FEED_PAGE_SIZE, offset: 0 });
       setTweets(feed);
+      offsetRef.current = feed.length;
+      if (feed.length < FEED_PAGE_SIZE) hasMoreRef.current = false;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not load timeline.');
     } finally {
@@ -59,8 +71,45 @@ export default function Home() {
     }
   };
 
+  const loadMore = async () => {
+    if (isLoadingMoreRef.current || !hasMoreRef.current) return;
+    isLoadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    try {
+      const more = await getFeed(activeTabRef.current, { limit: FEED_PAGE_SIZE, offset: offsetRef.current });
+      if (more.length === 0) {
+        hasMoreRef.current = false;
+      } else {
+        setTweets((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          return [...prev, ...more.filter((t) => !existingIds.has(t.id))];
+        });
+        offsetRef.current += more.length;
+        if (more.length < FEED_PAGE_SIZE) hasMoreRef.current = false;
+      }
+    } catch {
+      // silently ignore load-more errors
+    } finally {
+      isLoadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     void refreshTimeline(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMore();
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, [activeTab]);
 
   useEffect(() => {
@@ -176,6 +225,10 @@ export default function Home() {
       alert("Geolocation is not supported by your browser.");
       setIsLocating(false);
     }
+  };
+
+  const handleTweetDeleted = (deletedId: string) => {
+    setTweets((prev) => prev.filter((t) => t.id !== deletedId));
   };
 
   const displayedTweets = tweets;
@@ -366,11 +419,19 @@ export default function Home() {
           {isLoading ? (
             <div className="px-4 py-8 text-text-muted">Loading timeline...</div>
           ) : displayedTweets.length === 0 ? (
-            <div className="px-4 py-8 text-text-muted">No tweets yet.</div>
+            <div className="px-4 py-8 text-text-muted">No tweets yet. Pull down to refresh.</div>
           ) : (
             displayedTweets.map((tweet) => (
-              <Tweet key={tweet.id} {...tweet} />
+              <Tweet key={tweet.id} {...tweet} onDelete={handleTweetDeleted} />
             ))
+          )}
+        </div>
+
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} className="flex justify-center py-6 text-text-muted text-sm">
+          {isLoadingMore && <span>Loading more...</span>}
+          {!isLoading && !isLoadingMore && !hasMoreRef.current && displayedTweets.length > 0 && (
+            <span>You've reached the end</span>
           )}
         </div>
       </main>

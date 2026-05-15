@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { ArrowLeft, MessageCircle, Repeat2, Heart, Share, Bookmark, MoreHorizontal, Image as ImageIcon, Smile, ListTodo, Calendar, MapPin } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Repeat2, Heart, Share, Bookmark, MoreHorizontal, Image as ImageIcon, Smile, ListTodo, Calendar, MapPin, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import TrendingSidebar from '../components/TrendingSidebar';
 import { toggleBookmark } from '../services/bookmarksApi';
 import { createComment, getComments } from '../services/commentsApi';
 import { getCurrentUser, type AuthUser } from '../services/authApi';
 import { getUserProfile } from '../services/usersApi';
-import { getTweetDetail, retweetTweet, type TweetDetail as TweetDetailType, type TweetComment } from '../services/tweetsApi';
+import { getTweetDetail, retweetTweet, deleteTweet, type TweetDetail as TweetDetailType, type TweetComment } from '../services/tweetsApi';
 import { toggleLike } from '../services/likesApi';
 
 const EMOJI_LIST = ['😀','😂','🥹','😍','🥰','😎','🤔','😭','😤','😡','👍','👎','❤️','🔥','💯','✨','🎉','🙏','👏','💪','👀','💀','🥺','😢','🤣','🎊','⭐','💫','🎯','🫡','😴','🤯','🥳','😇','🤩','😬','🫶','💔','🖤','🫠'];
@@ -46,6 +46,10 @@ export default function TweetDetail() {
   const replyMediaInputRef = useRef<HTMLInputElement>(null);
   const [inlineReplyMediaFiles, setInlineReplyMediaFiles] = useState<File[]>([]);
   const inlineReplyMediaInputRef = useRef<HTMLInputElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadTweetDetail = async () => {
@@ -339,6 +343,37 @@ export default function TweetDetail() {
     }
   };
 
+  const isOwnPost = currentUser != null && tweet != null && currentUser.handle === tweet.author.handle;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
+
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (isDeleting) return;
+    try {
+      setIsDeleting(true);
+      setIsDeleteConfirmOpen(false);
+      await deleteTweet(tweetId);
+      navigate(-1);
+    } catch {
+      window.alert('Could not delete this post right now.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleBookmarkToggle = async () => {
     if (!Number.isFinite(tweetId) || !tweet || isBookmarking) {
       return;
@@ -392,9 +427,31 @@ export default function TweetDetail() {
                     <span className="text-text-muted text-sm">@{tweet.author.handle}</span>
                   </div>
                 </div>
-                <button className="text-text-muted hover:text-text-base hover:bg-border/50 p-2 rounded-full transition-colors">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
+                <div className="relative" ref={menuRef}>
+                  <button
+                    className="text-text-muted hover:text-primary hover:bg-primary/10 p-2 rounded-full transition-colors"
+                    onClick={() => setIsMenuOpen((prev) => !prev)}
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                  {isMenuOpen && (
+                    <div
+                      className="absolute right-0 top-full mt-1 w-56 bg-bg-panel rounded-2xl shadow-xl border border-border z-50 py-2 overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isOwnPost && (
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold text-red-500 disabled:opacity-60"
+                          onClick={() => { setIsMenuOpen(false); void handleDelete(); }}
+                          disabled={isDeleting}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          {isDeleting ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <p className="text-[23px] leading-8 whitespace-pre-wrap break-words mb-4 tracking-tight">
@@ -706,6 +763,45 @@ export default function TweetDetail() {
           </>
         )}
       </main>
+
+      {isDeleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setIsDeleteConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-border bg-bg-panel p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold tracking-tight text-red-500">Delete post?</h3>
+            <p className="mt-2 text-[15px] leading-6 text-text-muted">
+              This post will be permanently removed. Likes, comments, reposts, and related notifications cannot be restored.
+            </p>
+            {tweet && (
+              <div className="mt-4 rounded-2xl border border-border bg-bg-base/70 p-3">
+                <p className="text-sm font-bold text-text-base">Post preview</p>
+                <p className="mt-1 text-sm text-text-muted line-clamp-3 whitespace-pre-wrap break-words">{tweet.content}</p>
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="rounded-full border border-border px-4 py-2.5 text-sm font-bold text-text-base hover:bg-border/30 transition-colors"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void confirmDelete()}
+                className="rounded-full bg-red-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-600 transition-colors disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <TrendingSidebar />
     </>

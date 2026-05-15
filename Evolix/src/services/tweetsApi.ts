@@ -87,9 +87,11 @@ export function getTimeline() {
   );
 }
 
-export function getFeed(scope: 'forYou' | 'following') {
-  const queryScope = scope === 'forYou' ? 'for-you' : 'following';
-  return apiRequest<TimelineTweet[]>(`/tweets/feed?scope=${encodeURIComponent(queryScope)}`).then((list) =>
+export function getFeed(scope: 'forYou' | 'following', { limit, offset }: { limit?: number; offset?: number } = {}) {
+  const params = new URLSearchParams({ scope: scope === 'forYou' ? 'for-you' : 'following' });
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (offset !== undefined && offset > 0) params.set('offset', String(offset));
+  return apiRequest<TimelineTweet[]>(`/tweets/feed?${params.toString()}`).then((list) =>
     list.map((t) => ({
       ...t,
       media: t.media?.map((m) => resolveAssetUrl(m)),

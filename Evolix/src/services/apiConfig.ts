@@ -7,12 +7,9 @@ export function buildApiUrl(path: string) {
 // Resolve a media or asset URL returned by the backend. If the value is already
 // an absolute URL it is returned unchanged. Otherwise the function prefixes the
 // configured API base so the browser requests the correct host/port.
-export function resolveAssetUrl(url?: string | null) {
-  if (!url) return url;
+export function resolveAssetUrl(url?: string | null): string {
+  if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
-  // Ensure leading slash
   const path = url.startsWith('/') ? url : `/${url}`;
-  // Fallback to localhost backend when API_BASE_URL is empty
-  const base = API_BASE_URL;
-  return `${base}${path}`;
+  return `${API_BASE_URL}${path}`;
 }
