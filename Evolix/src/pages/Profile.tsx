@@ -9,6 +9,36 @@ import { getTweetsByUser, getLikedTweetsByUser, type TimelineTweet } from '../se
 import { getUserProfile, updateMyProfile, uploadProfileImage, getFollowers, getFollowing, type UpdateProfilePayload, type UserProfile, type UserSummary } from '../services/usersApi';
 import { getAuthSession, saveAuthSession } from '../services/authApi';
 
+function dedupeTweetsById<T extends { id: string | number }>(tweets: T[]): T[] {
+  const seen = new Set<string>();
+  return tweets.filter((tweet) => {
+    const tweetId = String(tweet.id);
+    if (seen.has(tweetId)) {
+      return false;
+    }
+    seen.add(tweetId);
+    return true;
+  });
+}
+
+function mergeUniqueTweets<T extends { id: string | number }>(existing: T[], incoming: T[]): T[] {
+  if (incoming.length === 0) {
+    return existing;
+  }
+
+  const seen = new Set(existing.map((tweet) => String(tweet.id)));
+  const uniqueIncoming = incoming.filter((tweet) => {
+    const tweetId = String(tweet.id);
+    if (seen.has(tweetId)) {
+      return false;
+    }
+    seen.add(tweetId);
+    return true;
+  });
+
+  return uniqueIncoming.length > 0 ? [...existing, ...uniqueIncoming] : existing;
+}
+
 export default function Profile() {
   const [followingSubTab, setFollowingSubTab] = useState<'verified' | 'followers' | 'following'>('followers');
 
@@ -177,8 +207,8 @@ export default function Profile() {
       setHasMorePosts(true);
       try {
         setIsLoadingTweets(true);
-        const tweets = await getTweetsByUser(profile.user.id, undefined, 0);
-        setProfileTweets(tweets);
+        const tweets = (await getTweetsByUser(profile.user.id, undefined, 0)) as TimelineTweet[];
+        setProfileTweets(dedupeTweetsById(tweets));
         postsOffsetRef.current = tweets.length;
         if (tweets.length < POSTS_PAGE_SIZE) setHasMorePosts(false);
       } catch (error) {
@@ -206,8 +236,8 @@ export default function Profile() {
       try {
         isLoadingLikesRef.current = true;
         setIsLoadingLikes(true);
-        const tweets = await getLikedTweetsByUser(profile.user.id, 0);
-        setLikedTweets(tweets);
+        const tweets = (await getLikedTweetsByUser(profile.user.id, 0)) as TimelineTweet[];
+        setLikedTweets(dedupeTweetsById(tweets));
         likedPostsOffsetRef.current = tweets.length;
         if (tweets.length < POSTS_PAGE_SIZE) setHasMoreLikedPosts(false);
         hasLoadedLikedPageRef.current = true;
@@ -228,8 +258,8 @@ export default function Profile() {
     if (!profile?.user.id || isLoadingMorePosts || !hasMorePosts) return;
     setIsLoadingMorePosts(true);
     try {
-      const more = await getTweetsByUser(profile.user.id, undefined, postsOffsetRef.current);
-      setProfileTweets((prev) => [...prev, ...more]);
+      const more = (await getTweetsByUser(profile.user.id, undefined, postsOffsetRef.current)) as TimelineTweet[];
+      setProfileTweets((prev) => mergeUniqueTweets(prev, more));
       postsOffsetRef.current += more.length;
       if (more.length < POSTS_PAGE_SIZE) setHasMorePosts(false);
     } catch {
@@ -249,8 +279,8 @@ export default function Profile() {
     ) return;
     setIsLoadingMoreLikedPosts(true);
     try {
-      const more = await getLikedTweetsByUser(profile.user.id, likedPostsOffsetRef.current);
-      setLikedTweets((prev) => [...prev, ...more]);
+      const more = (await getLikedTweetsByUser(profile.user.id, likedPostsOffsetRef.current)) as TimelineTweet[];
+      setLikedTweets((prev) => mergeUniqueTweets(prev, more));
       likedPostsOffsetRef.current += more.length;
       if (more.length < POSTS_PAGE_SIZE) setHasMoreLikedPosts(false);
     } catch {
