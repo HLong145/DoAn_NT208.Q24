@@ -315,6 +315,18 @@ export default function Profile() {
 
   const isOwnProfile = Boolean(currentUser?.handle && profile?.user.handle === currentUser.handle);
 
+  const handleTweetDeleted = (tweetId: string) => {
+    setProfileTweets((previous) => previous.filter((tweet) => tweet.id !== tweetId));
+    setLikedTweets((previous) => previous.filter((tweet) => tweet.id !== tweetId));
+    setProfile((previous) => previous ? {
+      ...previous,
+      user: {
+        ...previous.user,
+        postsCount: Math.max(0, previous.user.postsCount - 1),
+      },
+    } : previous);
+  };
+
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>, type: 'avatarUrl' | 'headerUrl') => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -425,6 +437,7 @@ export default function Profile() {
   const profileUser = profile?.user;
   const avatarUrl = editForm.avatarUrl || profileUser?.avatarUrl || undefined;
   const headerUrl = editForm.headerUrl || profileUser?.headerUrl || undefined;
+  const repliedTweets = profileTweets.filter((tweet) => tweet.stats.replies > 0);
 
   return (
     <>
@@ -515,8 +528,8 @@ export default function Profile() {
                   >
                     {isUpdatingFollow ? 'Saving...' : (
                       <>
-                        <span className="group-hover:hidden">{profileUser.isFollowing ? 'Following' : 'Follow'}</span>
-                        <span className="hidden group-hover:inline">Unfollow</span>
+                        <span className={profileUser.isFollowing ? 'group-hover:hidden' : ''}>{profileUser.isFollowing ? 'Following' : 'Follow'}</span>
+                        {profileUser.isFollowing && <span className="hidden group-hover:inline">Unfollow</span>}
                       </>
                     )}
                   </button>
@@ -654,12 +667,38 @@ export default function Profile() {
                         isReposted={tweet.isReposted}
                         media={tweet.media}
                         isBookmarked={tweet.isBookmarked}
+                        onDelete={handleTweetDeleted}
                       />
                     </div>
                   ))
                 ) : (
                   <div className="p-8 text-center text-text-muted">
                     <p>No posts yet.</p>
+                  </div>
+                )
+              ) : activeTab === 'replies' ? (
+                isLoadingTweets ? (
+                  <div className="p-8 text-center text-text-muted">Loading replies...</div>
+                ) : repliedTweets.length > 0 ? (
+                  repliedTweets.map((tweet) => (
+                    <div key={tweet.id}>
+                      <Tweet
+                        id={tweet.id}
+                        author={tweet.author}
+                        content={tweet.content}
+                        timestamp={tweet.timestamp}
+                        stats={tweet.stats}
+                        isLiked={tweet.isLiked}
+                        isReposted={tweet.isReposted}
+                        media={tweet.media}
+                        isBookmarked={tweet.isBookmarked}
+                        onDelete={handleTweetDeleted}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-text-muted">
+                    <p>No replied posts yet.</p>
                   </div>
                 )
               ) : activeTab === 'likes' ? (
@@ -678,6 +717,7 @@ export default function Profile() {
                         isReposted={tweet.isReposted}
                         media={tweet.media}
                         isBookmarked={tweet.isBookmarked}
+                        onDelete={handleTweetDeleted}
                       />
                     </div>
                   ))

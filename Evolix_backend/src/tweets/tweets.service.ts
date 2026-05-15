@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Like, Repository } from 'typeorm';
 import { Tweet } from './entities/tweet.entity';
@@ -268,6 +268,53 @@ export class TweetsService {
     }
 
     return { message: 'Retweeted successfully', isReposted: true };
+  }
+
+  async deleteTweet(userId: number, tweetId: number) {
+    const tweet = await this.tweetRepository.findOne({ where: { id: tweetId } });
+
+    if (!tweet) {
+      throw new NotFoundException('Tweet not found');
+    }
+
+    if (tweet.userId !== userId) {
+      throw new ForbiddenException('You can only delete your own posts');
+    }
+
+    const followerIds = await this.followsService.findFollowerIds(userId);
+    const affectedUserIds = new Set<number>([userId, ...followerIds]);
+
+    if (tweet.isRetweet && tweet.originalTweetId) {
+      await this.tweetRepository.decrement({ id: tweet.originalTweetId }, 'retweetCount', 1);
+    }
+
+    const [commentsResult, likesResult, retweetsToDelete] = await Promise.all([
+      this.commentRepository.delete({ tweetId }),
+      this.likeRepository.delete({ tweetId }),
+      tweet.isRetweet
+        ? Promise.resolve([] as Tweet[])
+        : this.tweetRepository.find({ where: { originalTweetId: tweetId, isRetweet: true } }),
+    ]);
+
+    if (retweetsToDelete.length > 0) {
+      retweetsToDelete.forEach((retweet) => {
+        affectedUserIds.add(retweet.userId);
+      });
+      await this.tweetRepository.remove(retweetsToDelete);
+    }
+
+    await this.tweetRepository.remove(tweet);
+
+    const retweetFollowerIds = retweetsToDelete.flatMap((retweet) => this.followsService.findFollowerIds(retweet.userId));
+    await this.invalidateTimelineCaches([...affectedUserIds, ...(await Promise.all(retweetFollowerIds)).flat()]);
+    await this.invalidateDiscoveryCaches(tweet.content);
+
+    return {
+      message: 'Tweet deleted successfully',
+      deletedComments: commentsResult.affected ?? 0,
+      deletedLikes: likesResult.affected ?? 0,
+      deletedRetweets: retweetsToDelete.length,
+    };
   }
 
   /**

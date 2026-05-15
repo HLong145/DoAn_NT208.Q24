@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards, Request, ParseIntPipe, Get, Query, UseInterceptors, UploadedFiles, Delete } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -49,6 +49,12 @@ export class TweetsController {
   ) {
     const userId = req.user.sub;
     return this.tweetsService.retweet(userId, originalTweetId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Delete(':id')
+  deleteTweet(@Request() req, @Param('id', ParseIntPipe) tweetId: number) {
+    return this.tweetsService.deleteTweet(req.user.sub, tweetId);
   }
 
   /**

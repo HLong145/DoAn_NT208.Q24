@@ -174,6 +174,12 @@ export function retweetTweet(tweetId: number) {
   });
 }
 
+export function deleteTweet(tweetId: number) {
+  return apiRequest<{ message: string }>(`/tweets/${tweetId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function getTweetDetail(tweetId: number, viewerUserId?: string) {
   const queryParams = viewerUserId ? `?viewerUserId=${encodeURIComponent(viewerUserId)}` : '';
   return apiRequest<TweetDetailResponse>(`/tweets/${tweetId}${queryParams}`).then((res) => {

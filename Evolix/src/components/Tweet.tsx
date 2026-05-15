@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal, UserPlus, UserMinus, VolumeX, Ban, BarChart, Flag, EyeOff } from 'lucide-react';
+import { MessageCircle, Repeat2, Heart, BarChart2, Share, Bookmark, MoreHorizontal, UserPlus, UserMinus, VolumeX, Ban, BarChart, Flag, EyeOff, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toggleBookmark } from '../services/bookmarksApi';
 import { toggleLike } from '../services/likesApi';
-import { retweetTweet } from '../services/tweetsApi';
+import { deleteTweet, retweetTweet } from '../services/tweetsApi';
 import { useAuth } from '../contexts/AuthContext';
 import { toggleFollow } from '../services/followsApi';
 
@@ -33,9 +33,10 @@ interface TweetProps {
 
 interface TweetMenuProps {
   isFollowingAuthor?: boolean;
+  onDelete?: (tweetId: string) => void;
 }
 
-export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange, isFollowingAuthor: initialIsFollowingAuthor, retweetedBy }: TweetProps & TweetMenuProps) {
+export default function Tweet({ id, author, content, timestamp, stats, isLiked: initialIsLiked, isReposted: initialIsReposted, isBookmarked: initialIsBookmarked, media, onBookmarkChange, isFollowingAuthor: initialIsFollowingAuthor, retweetedBy, onDelete }: TweetProps & TweetMenuProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [isLiked, setIsLiked] = useState(initialIsLiked || false);
@@ -68,6 +69,8 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowingAuthor || false);
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -204,6 +207,39 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isDeleting) {
+      return;
+    }
+
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (isDeleting) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setIsDeleteConfirmOpen(false);
+      await deleteTweet(Number(id));
+      setIsMenuOpen(false);
+      onDelete?.(id);
+      if (!onDelete) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Could not delete tweet:', error);
+      window.alert('Could not delete this post right now.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const renderContentWithLinks = (text: string) => {
     const parts = text.split(/(@\w+|#\w+)/g);
     return parts.map((part, index) => {
@@ -301,6 +337,16 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
                   <BarChart className="w-5 h-5" />
                   View post activity
                 </button>
+                {isOwnPost && (
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-border/30 transition-colors text-[15px] font-bold text-red-500 disabled:opacity-60"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                )}
                 {!isOwnPost && (
                   <>
                     <button
@@ -397,6 +443,50 @@ export default function Tweet({ id, author, content, timestamp, stats, isLiked: 
         </div>
       </div>
       </div>
+
+      {isDeleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDeleteConfirmOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-border bg-bg-panel p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold tracking-tight text-red-500">Delete post?</h3>
+            <p className="mt-2 text-[15px] leading-6 text-text-muted">
+              This post will be permanently removed. Likes, comments, reposts, and related notifications cannot be restored.
+            </p>
+            <div className="mt-4 rounded-2xl border border-border bg-bg-base/70 p-3">
+              <p className="text-sm font-bold text-text-base">Post preview</p>
+              <p className="mt-1 text-sm text-text-muted line-clamp-3 whitespace-pre-wrap break-words">
+                {content}
+              </p>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="rounded-full border border-border px-4 py-2.5 text-sm font-bold text-text-base hover:bg-border/30 transition-colors"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDelete()}
+                className="rounded-full bg-red-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-600 transition-colors disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
