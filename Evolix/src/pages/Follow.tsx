@@ -10,6 +10,7 @@ export default function Follow() {
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [followingInProgress, setFollowingInProgress] = useState<Set<number>>(new Set());
   const [hoveredFollowId, setHoveredFollowId] = useState<number | null>(null);
+  const [confirmUnfollowTarget, setConfirmUnfollowTarget] = useState<{ id: number; username: string } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -27,6 +28,17 @@ export default function Follow() {
   }, []);
 
   const handleFollow = async (userId: number) => {
+    // Check if user is already following
+    if (followingIds.has(userId)) {
+      // Show confirmation dialog
+      const user = suggestions.find(u => u.id === userId);
+      if (user) {
+        setConfirmUnfollowTarget({ id: userId, username: user.username });
+      }
+      return;
+    }
+
+    // Normal follow logic
     if (followingInProgress.has(userId)) return;
     setFollowingInProgress((prev) => new Set(prev).add(userId));
     try {
@@ -40,6 +52,26 @@ export default function Follow() {
       // ignore
     } finally {
       setFollowingInProgress((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+    }
+  };
+
+  const confirmUnfollow = async () => {
+    if (!confirmUnfollowTarget) return;
+    const userId = confirmUnfollowTarget.id;
+    if (followingInProgress.has(userId)) return;
+    setFollowingInProgress((prev) => new Set(prev).add(userId));
+    try {
+      const result = await toggleFollow(userId);
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        result.isFollowing ? next.add(userId) : next.delete(userId);
+        return next;
+      });
+    } catch {
+      // ignore
+    } finally {
+      setFollowingInProgress((prev) => { const next = new Set(prev); next.delete(userId); return next; });
+      setConfirmUnfollowTarget(null);
     }
   };
 
@@ -120,6 +152,33 @@ export default function Follow() {
           ))}
         </div>
       </main>
+
+      {/* Unfollow Confirmation Dialog */}
+      {confirmUnfollowTarget && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setConfirmUnfollowTarget(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="bg-bg-base border border-border rounded-xl p-6 w-full max-w-sm">
+              <h3 className="text-lg font-bold">Unfollow @{confirmUnfollowTarget.username}?</h3>
+              <p className="mt-2 text-sm text-text-muted">Their posts will no longer show up in your Following timeline.</p>
+              <div className="mt-4 flex gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmUnfollowTarget(null)}
+                  className="px-4 py-2 rounded-md bg-border text-text-base hover:opacity-90 transition-opacity"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => { await confirmUnfollow(); }}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:opacity-90 transition-opacity"
+                >
+                  Unfollow
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <TrendingSidebar />
     </>
