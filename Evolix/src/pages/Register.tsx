@@ -51,13 +51,17 @@ export default function Register() {
 
       <div className="mx-auto max-w-[1120px] grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="hidden lg:block">
-          <img src="/images/web_logo.jpg" alt="Evolix" className="w-16 h-16 object-contain rounded-xl mb-10" />
+          <div className="w-16 h-16 bg-text-base text-bg-base flex items-center justify-center font-bold text-3xl rounded-md mb-10">
+            E
+          </div>
           <h1 className="text-6xl font-extrabold tracking-tight leading-[1.05]">Join today.</h1>
           <p className="text-xl text-text-muted mt-4 max-w-md">Create your account and start posting in minutes.</p>
         </div>
 
         <div className="w-full max-w-[420px]">
-          <img src="/images/web_logo.jpg" alt="Evolix" className="lg:hidden w-12 h-12 object-contain rounded-xl mb-8" />
+          <div className="lg:hidden w-12 h-12 bg-text-base text-bg-base flex items-center justify-center font-bold text-2xl rounded-md mb-8">
+            E
+          </div>
 
           <h2 className="text-[32px] font-extrabold tracking-tight mb-6">Create your account</h2>
 
@@ -65,12 +69,6 @@ export default function Register() {
             <button type="button" onClick={() => { setErrorMessage(''); setIsGoogleAuthOpen(true); }} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
               Sign up with Google
-            </button>
-            <button type="button" onClick={() => setErrorMessage('Apple sign-up is not configured in this demo.')} className="w-full flex items-center justify-center gap-3 border border-border rounded-full py-2.5 hover:bg-border/40 transition-colors font-bold">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
-              </svg>
-              Sign up with Apple
             </button>
           </div>
 
