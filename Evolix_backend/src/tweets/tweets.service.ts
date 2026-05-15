@@ -654,22 +654,18 @@ export class TweetsService {
   }
 
   private async getForYouFeed(viewerUserId?: number, limit = 50, offset = 0): Promise<TimelineTweet[]> {
-    const tweets = await this.tweetRepository.find({
-      order: { createdAt: 'DESC' },
-      take: Math.min(200, limit + offset),
-    });
+    const tweets = await this.tweetRepository
+      .createQueryBuilder('tweet')
+      .orderBy(
+        `GREATEST(0, 48 - TIMESTAMPDIFF(HOUR, tweet.createdAt, NOW())) + tweet.likeCount * 2 + tweet.commentCount * 3 + IF(tweet.isRetweet, 1, 0)`,
+        'DESC',
+      )
+      .addOrderBy('tweet.createdAt', 'DESC')
+      .take(limit)
+      .skip(offset)
+      .getMany();
 
-    const rankedTweets = [...tweets]
-      .sort((left, right) => this.scoreTweet(right) - this.scoreTweet(left))
-      .slice(offset, offset + limit);
-
-    return this.buildTimelineTweets(rankedTweets, viewerUserId);
-  }
-
-  private scoreTweet(tweet: Tweet) {
-    const ageInHours = Math.max(0, (Date.now() - new Date(tweet.createdAt).getTime()) / 3_600_000);
-    const recencyScore = Math.max(0, 48 - ageInHours);
-    return recencyScore + tweet.likeCount * 2 + tweet.commentCount * 3 + (tweet.isRetweet ? 1 : 0);
+    return this.buildTimelineTweets(tweets, viewerUserId);
   }
 
   private normalizeLimit(value: number | undefined, fallback: number, min: number, max: number) {
