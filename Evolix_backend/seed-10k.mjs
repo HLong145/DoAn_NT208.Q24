@@ -12,6 +12,7 @@ const DB = {
   user: process.env.DB_USER ?? 'yuwkaa',
   password: process.env.DB_PASSWORD ?? 'yuwkaapassword',
   database: process.env.DB_NAME ?? 'evolix_db',
+  timezone: '+00:00',
 };
 
 const TOTAL_USERS    = 10_000;

@@ -13,6 +13,6 @@ export function resolveAssetUrl(url?: string | null) {
   // Ensure leading slash
   const path = url.startsWith('/') ? url : `/${url}`;
   // Fallback to localhost backend when API_BASE_URL is empty
-  const base = API_BASE_URL || 'http://localhost:4001';
+  const base = API_BASE_URL;
   return `${base}${path}`;
 }

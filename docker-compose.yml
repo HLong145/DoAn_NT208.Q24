@@ -24,13 +24,13 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
+    restart: unless-stopped
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     depends_on:
       - zookeeper
+    restart: unless-stopped
     ports:
       - "9093:9092"
     environment:
@@ -79,10 +79,11 @@ services:
       - backend
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: http://localhost:4001
+      VITE_API_BASE_URL: ""
+      API_PROXY_TARGET: http://backend:4001
     ports:
       - "3000:3000"
-    command: ["npm", "run", "dev"]
+    command: ["npm", "run", "dev:client"]
 
   benchmark:
     image: grafana/k6:latest

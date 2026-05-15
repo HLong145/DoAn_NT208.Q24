@@ -9,7 +9,7 @@ export function createRealtimeSocket(): Socket | null {
     return null;
   }
 
-  const baseUrl = API_BASE_URL || 'http://localhost:4001';
+  const baseUrl = API_BASE_URL || window.location.origin;
 
   return io(baseUrl, {
     transports: ['websocket'],
