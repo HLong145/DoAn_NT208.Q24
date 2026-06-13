@@ -1,25 +1,129 @@
-# Evolix — Microblogging Platform (NT208.Q24)
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!--                          EVOLIX  ·  README                        -->
+<!-- ════════════════════════════════════════════════════════════════ -->
 
-A Twitter-like microblogging web application built as a course project for **NT208 — Web Application Development**.
+<div align="center">
+
+<img src="docs/images/logo.jpg" alt="Evolix logo" width="120" height="120" style="border-radius:24px;" />
+
+<h1>Evolix</h1>
+
+<p><strong>Nền tảng microblogging thời gian thực — lấy cảm hứng từ Twitter / X</strong></p>
+
+<p><em>Đồ án môn <strong>NT208.Q24 — Phát triển ứng dụng Web</strong></em></p>
+
+<!-- ─────────────────────────  Badges  ───────────────────────── -->
+<p>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/NestJS-11-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" alt="NestJS 11" />
+  <img src="https://img.shields.io/badge/MySQL-8-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL 8" />
+  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis 7" />
+  <img src="https://img.shields.io/badge/Socket.IO-realtime-010101?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Socket.IO" />
+</p>
+
+<p>
+  <a href="#-tính-năng">Tính năng</a> ·
+  <a href="#-kiến-trúc">Kiến trúc</a> ·
+  <a href="#-cài-đặt">Cài đặt</a> ·
+  <a href="#-hiệu-năng">Hiệu năng</a> ·
+  <a href="#-load-testing">Load testing</a> ·
+  <a href="#-api">API</a>
+</p>
+
+</div>
 
 ---
 
-## Tech Stack
+## 🖼️ Giao diện
 
-| Layer | Technology |
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/main.png" alt="Trang chủ — bảng tin" width="100%" /><br/>
+      <sub><b>Trang chủ</b> — bảng tin <i>For you</i> / <i>Following</i>, đăng bài kèm ảnh & video</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/profile.png" alt="Trang cá nhân" width="100%" /><br/>
+      <sub><b>Trang cá nhân</b> — ảnh bìa, avatar, danh sách bài viết & follower</sub>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
+## ✨ Tính năng
+
+<table>
+<tr>
+<td valign="top" width="50%">
+
+**Tài khoản & bảo mật**
+- ✅ Đăng ký / Đăng nhập / Đăng xuất
+- ✅ Xác thực JWT (Bearer token) + bcrypt
+- ✅ Đổi tên hiển thị / email / mật khẩu / username
+- ✅ Upload avatar & ảnh bìa
+
+**Tương tác**
+- ✅ Đăng bài (text + ảnh + video)
+- ✅ Like / Retweet / Bookmark
+- ✅ Bình luận & trả lời (reply)
+- ✅ Follow / Unfollow
+
+</td>
+<td valign="top" width="50%">
+
+**Bảng tin & khám phá**
+- ✅ News feed cá nhân (theo người đang follow)
+- ✅ Feed *For You* (xếp hạng theo tương tác)
+- ✅ Explore / Tìm kiếm
+
+**Thời gian thực**
+- ✅ Tin nhắn riêng (Direct Message) qua WebSocket
+- ✅ Thông báo (Notifications)
+- ✅ Push bài viết mới real-time
+- ✅ Lớp cache Redis cho bảng tin
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🛠️ Tech Stack
+
+| Tầng | Công nghệ |
 |---|---|
-| Frontend | React 19 + TypeScript + Vite + Tailwind CSS |
-| Backend | NestJS 11 + TypeORM + MySQL |
-| Real-time | Socket.IO (WebSocket gateway) |
-| Caching | Redis (`cache-manager-redis-yet`) |
-| Auth | JWT (Bearer token) + bcrypt |
-| File storage | Multer disk storage (`/uploads`) |
+| **Frontend** | React 19 · TypeScript · Vite · Tailwind CSS |
+| **Backend** | NestJS 11 · TypeORM · MySQL |
+| **Real-time** | Socket.IO (WebSocket gateway) |
+| **Caching** | Redis (`cache-manager-redis-yet`) |
+| **Auth** | JWT (Bearer token) + bcrypt |
+| **Lưu file** | Multer disk storage (`/uploads`) |
 
 ---
 
-## Project Structure
+## 🏗️ Kiến trúc
 
+```text
+┌─────────────────┐      /api  (proxy)      ┌──────────────────┐
+│   Frontend      │ ──────────────────────► │     Backend      │
+│  React + Vite   │ ◄────────────────────── │     NestJS       │
+│   :3000         │      WebSocket          │     :4001        │
+└─────────────────┘                         └────────┬─────────┘
+                                                      │
+                                          ┌───────────┼───────────┐
+                                          ▼           ▼           ▼
+                                       ┌──────┐   ┌───────┐   ┌─────────┐
+                                       │MySQL │   │ Redis │   │/uploads │
+                                       └──────┘   └───────┘   └─────────┘
 ```
+
+```text
 DoAn_NT208.Q24/
 ├── Evolix/              # React frontend (port 3000)
 └── Evolix_backend/      # NestJS backend  (port 4001)
@@ -27,24 +131,25 @@ DoAn_NT208.Q24/
 
 ---
 
-## Prerequisites
+## 📦 Yêu cầu môi trường
 
-- Node.js >= 18
-- MySQL 8
-- Redis 7
+![Node](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
 
 ---
 
-## Setup
+## 🚀 Cài đặt
 
-### 1. Backend
+<details open>
+<summary><b>1 · Backend (NestJS)</b></summary>
 
 ```bash
 cd Evolix_backend
 npm install
 ```
 
-Create a `.env` file (or set environment variables):
+Tạo file `.env`:
 
 ```env
 DB_HOST=localhost
@@ -58,17 +163,17 @@ JWT_SECRET=your_jwt_secret
 ```
 
 ```bash
-# Development (watch mode)
-npm run start:dev
-
-# Production
-npm run start:prod
+npm run start:dev    # Development (watch mode)
+npm run start:prod   # Production
 ```
 
-The backend starts on **http://localhost:4001**.  
-`synchronize: true` is enabled — TypeORM creates/updates tables automatically on startup.
+> Backend chạy tại **http://localhost:4001**.
+> `synchronize: true` được bật — TypeORM tự tạo/cập nhật bảng khi khởi động.
 
-### 2. Frontend
+</details>
+
+<details open>
+<summary><b>2 · Frontend (React)</b></summary>
 
 ```bash
 cd Evolix
@@ -76,68 +181,62 @@ npm install
 npm run dev
 ```
 
-The frontend starts on **http://localhost:3000**.  
-Vite proxies `/api` → `localhost:4001` and `/uploads` → `localhost:4001/uploads`.
+> Frontend chạy tại **http://localhost:3000**.
+> Vite proxy `/api` → `localhost:4001` và `/uploads` → `localhost:4001/uploads`.
+
+</details>
 
 ---
 
-## Features
+## ⚡ Hiệu năng
 
-| Feature | Status |
-|---|---|
-| Register / Login / Logout | ✅ |
-| Post tweets (text + image + video) | ✅ |
-| Follow / Unfollow users | ✅ |
-| Personal news feed (following-based) | ✅ |
-| For-You feed (engagement-ranked) | ✅ |
-| Like tweets | ✅ |
-| Retweet | ✅ |
-| Comments / Replies | ✅ |
-| Bookmarks | ✅ |
-| Notifications | ✅ |
-| Direct messages (WebSocket) | ✅ |
-| Explore / Search | ✅ |
-| Change display name / email / password / username | ✅ |
-| Profile picture & header upload | ✅ |
-| Real-time push via WebSocket | ✅ |
-| Redis caching layer | ✅ |
+> **Yêu cầu:** thời gian phản hồi bảng tin < 500 ms, hỗ trợ ≥ 10 000 người dùng.
 
----
+<table>
+<tr>
+<td valign="top" width="50%">
 
-## Performance Design
+**🗂️ Database index** (bảng `tweet`)
+- Composite index `(userId, createdAt)` — tăng tốc fan-out timeline
+- Single index `userId` — tra cứu bài theo user nhanh
 
-### Requirement: feed response < 500 ms, support ≥ 10 000 users
+**🔢 Cached counters**
+- Cột `likeCount`, `commentCount` được tăng tại chỗ — không cần `COUNT(*)` join trên hot path
 
-**Database indexes** (`tweet` table):
-- Composite index `(userId, createdAt)` — fast timeline fan-out queries
-- Single index `userId` — fast per-user tweet lookup
+</td>
+<td valign="top" width="50%">
 
-**Cached counters** — `likeCount` and `commentCount` columns are incremented in-place; no expensive `COUNT(*)` joins on hot paths.
+**🧠 Redis caching**
+- Bảng tin cá nhân cache theo từng user trong 60 giây
+- Tự **invalidate** khi: user hoặc người họ follow đăng bài / retweet
 
-**Redis caching** — personal feed is cached per user for 60 seconds.  
-Cache is invalidated automatically when:
-- The user or anyone they follow posts a new tweet
-- A retweet is created
+**🔌 WebSocket**
+- Socket.IO gateway đẩy sự kiện `new_tweet` tới mọi follower đang online → client refetch mà không cần polling
 
-**WebSocket** — Socket.IO gateway pushes `new_tweet` events to all online followers in real time so clients can refetch without polling.
+</td>
+</tr>
+</table>
 
 ---
 
-## Load Testing
+## 🧪 Load Testing
 
-### Step 1 — Seed 10 000 users
+<details>
+<summary><b>Bước 1 — Seed 10 000 người dùng</b></summary>
 
 ```bash
 cd Evolix_backend
 node seed-10k.mjs
 ```
 
-This inserts 10 000 users, ~30 000 tweets, and ~100 000 follow relationships.  
-Runtime: ~10–15 seconds. Safe to run locally — total data is only a few MB.
+Chèn 10 000 users, ~30 000 tweets và ~100 000 quan hệ follow. Chạy mất ~10–15 giây, dữ liệu chỉ vài MB.
 
-> To reset: `DELETE FROM follow; DELETE FROM tweet; DELETE FROM user WHERE username LIKE 'seed_user_%';`
+> Reset: `DELETE FROM follow; DELETE FROM tweet; DELETE FROM user WHERE username LIKE 'seed_user_%';`
 
-### Step 2 — Install k6
+</details>
+
+<details>
+<summary><b>Bước 2 — Cài k6</b></summary>
 
 ```bash
 # Windows
@@ -147,67 +246,80 @@ winget install k6 --source winget
 brew install k6
 ```
 
-Or download the binary from [k6.io/docs/get-started/installation](https://k6.io/docs/get-started/installation/).
+Hoặc tải binary tại [k6.io/docs/get-started/installation](https://k6.io/docs/get-started/installation/).
 
-### Step 3 — Get a JWT token
+</details>
 
-1. Open the app at `http://localhost:3000`
-2. Log in with any account
-3. Open DevTools → Application → Local Storage → `evolix.auth.session`
-4. Copy the `token` value
+<details>
+<summary><b>Bước 3 — Lấy JWT token</b></summary>
 
-### Step 4 — Run the load test
+1. Mở app tại `http://localhost:3000`
+2. Đăng nhập bằng một tài khoản bất kỳ
+3. Mở DevTools → Application → Local Storage → `evolix.auth.session`
+4. Copy giá trị `token`
+
+</details>
+
+<details>
+<summary><b>Bước 4 — Chạy load test</b></summary>
 
 ```bash
 cd Evolix_backend
 k6 run -e TOKEN=<your_jwt_token> load-test.js
 ```
 
-**Test profile:** ramps to 100 concurrent virtual users over 50 seconds, then ramps down.
+**Profile:** tăng dần lên 100 virtual user trong 50 giây rồi giảm.
 
-**Pass criteria** (enforced by k6 thresholds):
-- `p(95) < 500 ms` — 95th-percentile feed response under 500 ms
-- `error rate < 1%`
+</details>
 
-**Expected results with Redis warm:**
+**Tiêu chí đạt** (k6 thresholds):
 
-```
-http_req_duration: avg=~40ms  p(95)=~150ms  p(99)=~300ms  ✓
-http_req_failed:   rate=0.00%                              ✓
-```
-
----
-
-## API Overview
-
-| Method | Endpoint | Description |
+| Chỉ số | Ngưỡng | Kết quả (Redis warm) |
 |---|---|---|
-| POST | `/auth/register` | Create account |
-| POST | `/auth/login` | Login, returns JWT |
-| GET | `/auth/me` | Current user info |
-| PATCH | `/auth/password` | Change password |
-| PATCH | `/auth/email` | Change email |
-| PATCH | `/auth/handle` | Change username |
-| GET | `/tweets/feed` | Personal feed (`?scope=for-you` for ranked feed) |
-| POST | `/tweets` | Create tweet (multipart/form-data) |
-| GET | `/tweets/:id` | Tweet detail + comments |
-| POST | `/tweets/:id/like` | Like / unlike |
-| GET | `/users/profile/:handle` | Public profile |
-| PATCH | `/users/me/profile` | Update profile |
-| POST | `/users/me/upload` | Upload profile image |
-| POST | `/follows/:id` | Follow user |
-| DELETE | `/follows/:id` | Unfollow user |
-
-Full WebSocket events are handled by the Socket.IO gateway at `ws://localhost:4001`.  
-Connect with `{ auth: { token: "<jwt>" } }`.
+| `http_req_duration` p(95) | < 500 ms | ~150 ms ✅ |
+| `http_req_duration` avg | — | ~40 ms ✅ |
+| `http_req_failed` rate | < 1% | 0.00% ✅ |
 
 ---
 
-## Docker (optional)
+## 🔗 API
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| `POST` | `/auth/register` | Tạo tài khoản |
+| `POST` | `/auth/login` | Đăng nhập, trả về JWT |
+| `GET` | `/auth/me` | Thông tin user hiện tại |
+| `PATCH` | `/auth/password` | Đổi mật khẩu |
+| `PATCH` | `/auth/email` | Đổi email |
+| `PATCH` | `/auth/handle` | Đổi username |
+| `GET` | `/tweets/feed` | Bảng tin cá nhân (`?scope=for-you` cho feed xếp hạng) |
+| `POST` | `/tweets` | Đăng bài (multipart/form-data) |
+| `GET` | `/tweets/:id` | Chi tiết bài + bình luận |
+| `POST` | `/tweets/:id/like` | Like / unlike |
+| `GET` | `/users/profile/:handle` | Trang cá nhân công khai |
+| `PATCH` | `/users/me/profile` | Cập nhật hồ sơ |
+| `POST` | `/users/me/upload` | Upload ảnh đại diện |
+| `POST` | `/follows/:id` | Follow user |
+| `DELETE` | `/follows/:id` | Unfollow user |
+
+> WebSocket events do Socket.IO gateway xử lý tại `ws://localhost:4001`.
+> Kết nối với `{ auth: { token: "<jwt>" } }`.
+
+---
+
+## 🐳 Docker (tùy chọn)
 
 ```bash
 cd Evolix_backend
 docker-compose up -d
 ```
 
-This starts MySQL + Redis containers locally. Update `.env` to use `DB_HOST=mysql` and `REDIS_HOST=redis` if running the backend inside Docker as well.
+Khởi động container MySQL + Redis. Nếu chạy backend trong Docker, đổi `.env` thành `DB_HOST=mysql` và `REDIS_HOST=redis`.
+
+---
+
+<div align="center">
+
+<sub>Đồ án môn <b>NT208.Q24 — Phát triển ứng dụng Web</b> · Trường Đại học Công nghệ Thông tin (UIT)</sub>
+
+</div>
